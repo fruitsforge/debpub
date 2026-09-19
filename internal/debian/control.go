@@ -28,22 +28,27 @@ type DebPackage struct {
 	SHA512  string
 }
 
-// ParseDebReader extracts control metadata and hashes from an io.ReaderAt / io.Reader of a .deb file.
+type byteCountingWriter struct {
+	total int64
+}
+
+func (c *byteCountingWriter) Write(p []byte) (int, error) {
+	c.total += int64(len(p))
+	return len(p), nil
+}
+
+// ParseDebReader extracts control metadata and hashes from an io.Reader of a .deb file without buffering the entire archive into memory.
 func ParseDebReader(r io.Reader) (*DebPackage, error) {
-	// Read entire .deb into memory or buffer for hashing and ar parsing
-	raw, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read .deb data: %w", err)
-	}
+	counter := &byteCountingWriter{}
+	md5H := md5.New()
+	sha1H := sha1.New()
+	sha256H := sha256.New()
+	sha512H := sha512.New()
 
-	size := int64(len(raw))
-	md5Sum := fmt.Sprintf("%x", md5.Sum(raw))
-	sha1Sum := fmt.Sprintf("%x", sha1.Sum(raw))
-	sha256Sum := fmt.Sprintf("%x", sha256.Sum256(raw))
-	sha512SumBytes := sha512.Sum512(raw)
-	sha512Sum := hex.EncodeToString(sha512SumBytes[:])
+	mw := io.MultiWriter(counter, md5H, sha1H, sha256H, sha512H)
+	tee := io.TeeReader(r, mw)
 
-	arReader := ar.NewReader(bytes.NewReader(raw))
+	arReader := ar.NewReader(tee)
 	var controlData []byte
 
 	for {
@@ -58,12 +63,14 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 		name := strings.TrimRight(header.Name, "/")
 		if strings.HasPrefix(name, "control.tar") {
 			var tarReader *tar.Reader
+			var closer io.Closer
 
 			if strings.HasSuffix(name, ".gz") {
 				gz, err := gzip.NewReader(arReader)
 				if err != nil {
 					return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
 				}
+				closer = gz
 				tarReader = tar.NewReader(gz)
 			} else if strings.HasSuffix(name, ".xz") {
 				xzR, err := xz.NewReader(arReader)
@@ -76,6 +83,7 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 				if err != nil {
 					return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
 				}
+				closer = zstdR.IOReadCloser()
 				tarReader = tar.NewReader(zstdR)
 			} else {
 				tarReader = tar.NewReader(arReader)
@@ -88,16 +96,25 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 					break
 				}
 				if err != nil {
+					if closer != nil {
+						_ = closer.Close()
+					}
 					return nil, fmt.Errorf("error reading %s: %w", name, err)
 				}
 				tarName := strings.TrimPrefix(tarHeader.Name, "./")
 				if tarName == "control" {
 					controlData, err = io.ReadAll(tarReader)
 					if err != nil {
+						if closer != nil {
+							_ = closer.Close()
+						}
 						return nil, fmt.Errorf("failed reading control file from tar: %w", err)
 					}
 					break
 				}
+			}
+			if closer != nil {
+				_ = closer.Close()
 			}
 			break
 		}
@@ -105,6 +122,11 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 
 	if len(controlData) == 0 {
 		return nil, fmt.Errorf("control file not found inside .deb archive")
+	}
+
+	// Drain remainder of the archive to ensure hashes and byte count cover the entire .deb
+	if _, err := io.Copy(io.Discard, tee); err != nil {
+		return nil, fmt.Errorf("failed reading remaining .deb data: %w", err)
 	}
 
 	paras, err := ParseParagraphs(bytes.NewReader(controlData))
@@ -116,10 +138,10 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 
 	return &DebPackage{
 		Control: stanza.PackageControl,
-		Size:    size,
-		MD5:     md5Sum,
-		SHA1:    sha1Sum,
-		SHA256:  sha256Sum,
-		SHA512:  sha512Sum,
+		Size:    counter.total,
+		MD5:     fmt.Sprintf("%x", md5H.Sum(nil)),
+		SHA1:    fmt.Sprintf("%x", sha1H.Sum(nil)),
+		SHA256:  fmt.Sprintf("%x", sha256H.Sum(nil)),
+		SHA512:  hex.EncodeToString(sha512H.Sum(nil)),
 	}, nil
 }

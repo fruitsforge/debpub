@@ -92,7 +92,7 @@ func (idx *Index) Remove(pkgName, version string) bool {
 	return removed
 }
 
-// Sort sorts the packages in the index alphabetically by Package name, then ascending by Debian Version.
+// Sort sorts the packages in the index alphabetically by Package name, then descending by Debian Version (latest first), then ascending by Architecture.
 func (idx *Index) Sort() {
 	sort.Slice(idx.Packages, func(i, j int) bool {
 		if idx.Packages[i].Package != idx.Packages[j].Package {
@@ -100,7 +100,7 @@ func (idx *Index) Sort() {
 		}
 		cmp := CompareVersions(idx.Packages[i].Version, idx.Packages[j].Version)
 		if cmp != 0 {
-			return cmp < 0
+			return cmp > 0
 		}
 		return idx.Packages[i].Architecture < idx.Packages[j].Architecture
 	})

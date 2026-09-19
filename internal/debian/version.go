@@ -73,18 +73,18 @@ func compareParts(s1, s2 string) int {
 		// Non-digits comparison
 		for (i1 < len1 && !unicode.IsDigit(rune(s1[i1]))) || (i2 < len2 && !unicode.IsDigit(rune(s2[i2]))) {
 			c1 := 0
-			if i1 < len1 {
+			if i1 < len1 && !unicode.IsDigit(rune(s1[i1])) {
 				c1 = orderChar(s1[i1])
+				i1++
 			}
 			c2 := 0
-			if i2 < len2 {
+			if i2 < len2 && !unicode.IsDigit(rune(s2[i2])) {
 				c2 = orderChar(s2[i2])
+				i2++
 			}
 			if c1 != c2 {
 				return compareInt(c1, c2)
 			}
-			i1++
-			i2++
 		}
 
 		// Digits comparison

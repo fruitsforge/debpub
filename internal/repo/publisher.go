@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -57,18 +56,17 @@ func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) 
 
 	// 1. Inspect all candidate packages locally before acquiring lock
 	var candidates []*debian.DebPackage
-	var payloads [][]byte
 	for _, fp := range debFilePaths {
-		data, err := os.ReadFile(fp)
+		f, err := os.Open(fp)
 		if err != nil {
-			return fmt.Errorf("failed reading candidate deb %s: %w", fp, err)
+			return fmt.Errorf("failed opening candidate deb %s: %w", fp, err)
 		}
-		pkg, err := debian.ParseDebReader(bytes.NewReader(data))
+		pkg, err := debian.ParseDebReader(f)
+		_ = f.Close()
 		if err != nil {
 			return fmt.Errorf("failed parsing deb %s: %w", fp, err)
 		}
 		candidates = append(candidates, pkg)
-		payloads = append(payloads, data)
 		slog.Info("Inspected candidate Debian package", "package", pkg.Control.Package, "version", pkg.Control.Version, "arch", pkg.Control.Architecture)
 	}
 
@@ -86,10 +84,21 @@ func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) 
 	var uploadedPoolPaths []string
 	for i, pkg := range candidates {
 		poolPath := p.computePoolPath(pkg)
-		data := payloads[i]
+		debPath := debFilePaths[i]
 
-		slog.Info("Phase 1: Uploading package binary to pool", "path", poolPath, "size", len(data))
-		err := p.storage.PutBytes(ctx, poolPath, data, "application/vnd.debian.binary-package")
+		f, err := os.Open(debPath)
+		if err != nil {
+			return fmt.Errorf("phase 1: failed opening deb file %s: %w", debPath, err)
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			_ = f.Close()
+			return fmt.Errorf("phase 1: failed stat deb file %s: %w", debPath, err)
+		}
+
+		slog.Info("Phase 1: Uploading package binary to pool", "path", poolPath, "size", fi.Size())
+		err = p.storage.Put(ctx, poolPath, f, fi.Size(), "application/vnd.debian.binary-package")
+		_ = f.Close()
 		if err != nil {
 			return fmt.Errorf("phase 1 payload upload failed for %s: %w", poolPath, err)
 		}

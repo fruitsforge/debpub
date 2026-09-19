@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -37,9 +38,6 @@ func (s *GPGSigner) SignDetached(ctx context.Context, data []byte) ([]byte, erro
 	if s.KeyID != "" {
 		args = append(args, "--local-user", s.KeyID)
 	}
-	if s.Passphrase != "" {
-		args = append(args, "--pinentry-mode", "loopback", "--passphrase", s.Passphrase)
-	}
 	args = append(args, s.ExtraArgs...)
 
 	return s.runGPG(ctx, args, data)
@@ -51,20 +49,41 @@ func (s *GPGSigner) SignClear(ctx context.Context, data []byte) ([]byte, error) 
 	if s.KeyID != "" {
 		args = append(args, "--local-user", s.KeyID)
 	}
-	if s.Passphrase != "" {
-		args = append(args, "--pinentry-mode", "loopback", "--passphrase", s.Passphrase)
-	}
 	args = append(args, s.ExtraArgs...)
 
 	return s.runGPG(ctx, args, data)
 }
 
 func (s *GPGSigner) runGPG(ctx context.Context, args []string, input []byte) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "gpg", args...)
+	cmdArgs := append([]string(nil), args...)
+
+	var passReader, passWriter *os.File
+	if s.Passphrase != "" {
+		var err error
+		passReader, passWriter, err = os.Pipe()
+		if err != nil {
+			return nil, fmt.Errorf("gpg passphrase pipe creation failed: %w", err)
+		}
+		defer passReader.Close()
+
+		cmdArgs = append(cmdArgs, "--pinentry-mode", "loopback", "--passphrase-fd", "3")
+	}
+
+	cmd := exec.CommandContext(ctx, "gpg", cmdArgs...)
 	cmd.Stdin = bytes.NewReader(input)
+	if passReader != nil {
+		cmd.ExtraFiles = []*os.File{passReader}
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+
+	if passWriter != nil {
+		go func() {
+			defer passWriter.Close()
+			_, _ = passWriter.WriteString(s.Passphrase + "\n")
+		}()
+	}
 
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("gpg execution failed (%s): %w", stringsTrim(stderr.String()), err)

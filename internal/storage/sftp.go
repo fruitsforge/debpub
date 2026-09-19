@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"net"
@@ -122,7 +123,11 @@ func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, 
 		return fmt.Errorf("sftp put mkdir: %w", err)
 	}
 
-	tmpPath := path.Join(dir, fmt.Sprintf(".debpub-tmp-%d", os.Getpid()))
+	randBytes := make([]byte, 8)
+	if _, err := rand.Read(randBytes); err != nil {
+		return fmt.Errorf("sftp put rand: %w", err)
+	}
+	tmpPath := path.Join(dir, fmt.Sprintf(".debpub-tmp-%d-%x", os.Getpid(), randBytes))
 	f, err := s.sftpClient.Create(tmpPath)
 	if err != nil {
 		return fmt.Errorf("sftp put create temp: %w", err)
@@ -232,8 +237,11 @@ func (s *SFTPBackend) mkdirAll(dirPath string) error {
 		if strings.HasPrefix(clean, "/") {
 			cur = "/" + cur
 		}
-		if err := s.sftpClient.Mkdir(cur); err != nil && !os.IsExist(err) {
-			// Directory might exist
+		if err := s.sftpClient.Mkdir(cur); err != nil {
+			stat, statErr := s.sftpClient.Stat(cur)
+			if statErr != nil || !stat.IsDir() {
+				return fmt.Errorf("failed creating directory %s: %w", cur, err)
+			}
 		}
 	}
 	return nil

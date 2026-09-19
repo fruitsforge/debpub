@@ -122,8 +122,23 @@ func (l *Locker) Acquire(ctx context.Context) error {
 			// Inspect existing lock for staleness
 			stale, existingInfo := l.checkStale(ctx)
 			if stale {
-				slog.Warn("Breaking stale/expired repository lock", "lockPath", l.lockPath, "oldHolder", existingInfo.Holder, "expiredAt", existingInfo.ExpiresAt)
-				_ = l.backend.Delete(ctx, l.lockPath)
+				// Apply randomized jitter delay to desynchronize concurrent workers seeing the stale lock
+				jitter := time.Duration(100+rand.IntN(400)) * time.Millisecond
+				select {
+				case <-time.After(jitter):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+
+				// Re-verify that the lock is STILL stale and has not been replaced or refreshed by another worker
+				recheckStale, recheckInfo := l.checkStale(ctx)
+				if recheckStale && (recheckInfo.Holder == existingInfo.Holder || existingInfo.Holder == "corrupted") {
+					slog.Warn("Breaking verified stale/expired repository lock",
+						"lockPath", l.lockPath,
+						"oldHolder", existingInfo.Holder,
+						"expiredAt", existingInfo.ExpiresAt)
+					_ = l.backend.Delete(ctx, l.lockPath)
+				}
 				continue
 			}
 
@@ -216,5 +231,24 @@ func (l *Locker) Release(ctx context.Context) error {
 	l.mu.Unlock()
 
 	slog.Info("Releasing repository lock", "lockPath", l.lockPath)
+
+	// Verify we still hold the lock before deleting it, preventing clobbering another worker's lock
+	rc, err := l.backend.Get(ctx, l.lockPath)
+	if err == nil {
+		defer rc.Close()
+		if data, errRead := io.ReadAll(rc); errRead == nil {
+			var currentInfo LockInfo
+			if errUnmarshal := json.Unmarshal(data, &currentInfo); errUnmarshal == nil {
+				if currentInfo.Holder != l.holder {
+					slog.Warn("Lock expired and was acquired by another worker before release; skipping delete",
+						"lockPath", l.lockPath, "currentHolder", currentInfo.Holder, "ourHolder", l.holder)
+					return nil
+				}
+			}
+		}
+	} else if errors.Is(err, storage.ErrNotFound) {
+		return nil
+	}
+
 	return l.backend.Delete(ctx, l.lockPath)
 }
