@@ -1,0 +1,50 @@
+version: 2
+
+project_name: debpub
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: debpub
+    main: .
+    binary: debpub
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X debpub/internal/version.Version={{ .Version }}
+      - -X debpub/internal/version.GitCommit={{ .Commit }}
+      - -X debpub/internal/version.BuildDate={{ .Date }}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

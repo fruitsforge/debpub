@@ -3,7 +3,7 @@
 BINARY_NAME=debpub
 BIN_DIR=bin
 
-BASE_VERSION ?= 1.0.0-dev
+BASE_VERSION ?= 0.0.1
 GIT_TAG ?= $(shell git describe --tags --exact-match 2>/dev/null)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DIRTY ?= $(shell git diff --quiet 2>/dev/null && echo "" || echo "-dirty")

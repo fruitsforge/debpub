@@ -6,8 +6,8 @@ import (
 )
 
 var (
-	// Version is the semantic release version. Can be overridden via -ldflags="-X debpub/internal/version.Version=v1.0.0".
-	Version = "1.0.0-dev"
+	// Version is the semantic release version. Can be overridden via -ldflags="-X debpub/internal/version.Version=v0.0.1".
+	Version = "0.0.1"
 
 	// GitCommit is the git SHA injected during build.
 	GitCommit = "none"

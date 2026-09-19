@@ -21,3 +21,7 @@ doc/ai/
 /.idea/modules.xml
 /.idea/vcs.xml
 /debpub.iml
+
+# OS files
+.DS_Store
+
