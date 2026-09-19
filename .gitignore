@@ -1,0 +1,23 @@
+# Binaries and build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+
+# Internal AI discussions, prompts, and specs
+doc/ai/
+/.skills/
+/.antigravity/
+/.idea/.gitignore
+/.idea/go.imports.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/vcs.xml
+/debpub.iml
