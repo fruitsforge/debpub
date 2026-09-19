@@ -66,6 +66,12 @@ func buildStorageBackend(ctx context.Context) (storage.StorageBackend, error) {
 		}
 
 		var optFns []func(*awsconfig.LoadOptions) error
+		if cfg.S3Profile != "" {
+			optFns = append(optFns, awsconfig.WithSharedConfigProfile(cfg.S3Profile))
+		}
+		if cfg.S3Region != "" {
+			optFns = append(optFns, awsconfig.WithRegion(cfg.S3Region))
+		}
 		awsCfg, err := awsconfig.LoadDefaultConfig(ctx, optFns...)
 		if err != nil {
 			return nil, fmt.Errorf("failed loading AWS config: %w", err)

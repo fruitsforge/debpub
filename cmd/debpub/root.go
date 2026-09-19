@@ -77,6 +77,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.S3Endpoint, "s3-endpoint", "", "Custom S3 endpoint URL (for MinIO, Wasabi, Ceph, R2)")
 	rootCmd.PersistentFlags().BoolVar(&cfg.S3ForcePathStyle, "s3-force-path-style", false, "Force path-style S3 URLs (e.g. for MinIO)")
 	rootCmd.PersistentFlags().BoolVar(&cfg.S3LegacyLocking, "s3-legacy-locking", false, "Use optimistic check-then-put locking instead of S3 conditional writes")
+	rootCmd.PersistentFlags().StringVar(&cfg.S3Profile, "s3-profile", "", "AWS profile name to use for credentials and configuration")
+	rootCmd.PersistentFlags().StringVar(&cfg.S3Region, "s3-region", "", "AWS region for S3 bucket (e.g. us-east-1, eu-central-1)")
 
 	// SFTP Flags
 	rootCmd.PersistentFlags().StringVar(&cfg.SFTPHost, "sftp-host", "", "SFTP server host")
@@ -124,6 +126,8 @@ func loadConfigWithPrecedence(cmd *cobra.Command) error {
 	applyStringIfNotChanged(cmd, "s3-endpoint", &cfg.S3Endpoint, fileCfg.S3Endpoint)
 	applyBoolIfNotChanged(cmd, "s3-force-path-style", &cfg.S3ForcePathStyle, fileCfg.S3ForcePathStyle)
 	applyBoolIfNotChanged(cmd, "s3-legacy-locking", &cfg.S3LegacyLocking, fileCfg.S3LegacyLocking)
+	applyStringIfNotChanged(cmd, "s3-profile", &cfg.S3Profile, fileCfg.S3Profile)
+	applyStringIfNotChanged(cmd, "s3-region", &cfg.S3Region, fileCfg.S3Region)
 	applyStringIfNotChanged(cmd, "sftp-host", &cfg.SFTPHost, fileCfg.SFTPHost)
 	applyIntIfNotChanged(cmd, "sftp-port", &cfg.SFTPPort, fileCfg.SFTPPort)
 	applyStringIfNotChanged(cmd, "sftp-user", &cfg.SFTPUser, fileCfg.SFTPUser)

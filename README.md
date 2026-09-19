@@ -78,6 +78,17 @@ debpub publish \
   ./mypackage_1.0.0_amd64.deb
 ```
 
+#### Named AWS Profile & Specific Region:
+```bash
+debpub publish \
+  --storage s3 \
+  --bucket my-debian-repo \
+  --s3-profile production \
+  --s3-region eu-central-1 \
+  --codename bookworm \
+  ./mypackage_1.0.0_amd64.deb
+```
+
 ### 2. Publishing to Local Filesystem or HTTP Server Directory
 
 Ideal for local testing, bind mounts, or static web servers (Nginx/Apache):
@@ -156,7 +167,9 @@ To avoid repeating flags across CI/CD pipeline steps, define a `debpub.json` fil
   "s3": {
     "endpoint": "",
     "force_path_style": false,
-    "legacy_locking": false
+    "legacy_locking": false,
+    "profile": "production",
+    "region": "eu-central-1"
   }
 }
 ```
@@ -170,7 +183,7 @@ debpub publish --config debpub.json ./mypackage_1.0.0_amd64.deb
 `debpub` strictly enforces layered configuration priority:
 1. **Command-line flags** (highest priority; explicitly overrides any setting).
 2. **Config file** (values from `debpub.json` via `--config`).
-3. **Environment variables** (e.g., standard AWS credential variables `AWS_ACCESS_KEY_ID`, `AWS_REGION`).
+3. **Environment variables** (e.g., standard AWS credential variables `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, `AWS_REGION`).
 4. **Built-in defaults** (e.g. `--lock-timeout 5m`, `--component main`).
 
 For example, you can use `debpub.json` for base bucket and codename settings, and override `--component testing` dynamically on the command line:
@@ -197,6 +210,8 @@ debpub publish --config debpub.json --component testing ./mypackage_1.0.0_amd64.
 | `--s3-endpoint` | | Custom S3 endpoint URL (MinIO, Ceph, R2) | |
 | `--s3-force-path-style` | | Use path-style S3 URLs (required for MinIO) | `false` |
 | `--s3-legacy-locking` | | Use check-then-put locking instead of S3 conditional writes | `false` |
+| `--s3-profile` | | AWS profile name to use for credentials and configuration | |
+| `--s3-region` | | AWS region for S3 bucket (e.g. `us-east-1`, `eu-central-1`) | |
 | `--sftp-host` | | SFTP server hostname / IP | |
 | `--sftp-port` | | SFTP port | `22` |
 | `--sftp-user` | | SFTP username | |

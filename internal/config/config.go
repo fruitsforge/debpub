@@ -30,6 +30,8 @@ type Config struct {
 	S3Endpoint       string            `json:"s3_endpoint"`
 	S3ForcePathStyle bool              `json:"s3_force_path_style"`
 	S3LegacyLocking  bool              `json:"s3_legacy_locking"`
+	S3Profile        string            `json:"s3_profile"`
+	S3Region         string            `json:"s3_region"`
 	SFTPHost         string            `json:"sftp_host"`
 	SFTPPort         int               `json:"sftp_port"`
 	SFTPUser         string            `json:"sftp_user"`
@@ -77,6 +79,8 @@ type S3Config struct {
 	Endpoint       string `json:"endpoint"`
 	ForcePathStyle *bool  `json:"force_path_style"`
 	LegacyLocking  *bool  `json:"legacy_locking"`
+	Profile        string `json:"profile"`
+	Region         string `json:"region"`
 }
 
 type SFTPConfig struct {
@@ -190,6 +194,12 @@ func LoadConfigFile(path string, target *Config) error {
 		}
 		if schema.S3.LegacyLocking != nil {
 			target.S3LegacyLocking = *schema.S3.LegacyLocking
+		}
+		if schema.S3.Profile != "" {
+			target.S3Profile = schema.S3.Profile
+		}
+		if schema.S3.Region != "" {
+			target.S3Region = schema.S3.Region
 		}
 	}
 

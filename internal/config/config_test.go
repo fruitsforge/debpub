@@ -34,7 +34,9 @@ func TestLoadConfigFile(t *testing.T) {
 		"s3": {
 			"endpoint": "http://minio:9000",
 			"force_path_style": true,
-			"legacy_locking": false
+			"legacy_locking": false,
+			"profile": "staging",
+			"region": "eu-central-1"
 		},
 		"metadata": {
 			"pipeline_id": "999"
@@ -76,6 +78,12 @@ func TestLoadConfigFile(t *testing.T) {
 	}
 	if cfg.S3Endpoint != "http://minio:9000" || !cfg.S3ForcePathStyle {
 		t.Errorf("S3 settings mismatch: %v, %v", cfg.S3Endpoint, cfg.S3ForcePathStyle)
+	}
+	if cfg.S3Profile != "staging" {
+		t.Errorf("S3Profile = %s, want staging", cfg.S3Profile)
+	}
+	if cfg.S3Region != "eu-central-1" {
+		t.Errorf("S3Region = %s, want eu-central-1", cfg.S3Region)
 	}
 	if cfg.ExtraMetadata["pipeline_id"] != "999" {
 		t.Errorf("Metadata mismatch: %v", cfg.ExtraMetadata)
