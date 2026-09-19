@@ -100,7 +100,7 @@ func DefaultConfig() *Config {
 		LockTimeout:      5 * time.Minute,
 		LockTTL:          10 * time.Minute,
 		SFTPPort:         22,
-		PreserveVersions: false,
+		PreserveVersions: true,
 		ExtraMetadata:    make(map[string]string),
 	}
 }

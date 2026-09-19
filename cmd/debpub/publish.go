@@ -14,13 +14,21 @@ import (
 )
 
 var publishCmd = &cobra.Command{
-	Use:   "publish [flags] <file.deb...>",
+	Use:   "publish [flags] <file.deb|pattern|directory...>",
 	Short: "Publish one or more Debian packages to the repository",
-	Long: `Publishes Debian (.deb) packages to the target repository using the 4-phase staged upload protocol:
+	Long: `Publishes Debian (.deb, .udeb, .ddeb) packages to the target repository using the 4-phase staged upload protocol:
 1. Upload package binaries to pool/
 2. Generate and upload index files (Packages, Packages.gz, Packages.bz2, Packages.xz)
 3. Activate release manifest (Release, Release.gpg, InRelease)
-4. Release distributed lock`,
+4. Release distributed lock
+
+Positional arguments can be:
+- One or more individual .deb file paths:
+    debpub publish -c stable ./pkg1.deb ./pkg2.deb
+- Wildcard/glob patterns (evaluated directly or shell-expanded):
+    debpub publish -c stable "./dist/*.deb"
+- Directories (scanned recursively for .deb, .udeb, and .ddeb packages):
+    debpub publish -c stable ./build-output/`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := loadConfigWithPrecedence(cmd); err != nil {
@@ -31,7 +39,15 @@ var publishCmd = &cobra.Command{
 			return fmt.Errorf("missing required --codename (-c) or codename in config file")
 		}
 
+		debFiles, err := debian.CollectDebFiles(args)
+		if err != nil {
+			return fmt.Errorf("package collection error: %w", err)
+		}
+
 		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
 		backend, err := buildStorageBackend(ctx)
 		if err != nil {
 			return fmt.Errorf("storage backend error: %w", err)
@@ -43,7 +59,7 @@ var publishCmd = &cobra.Command{
 		}
 
 		publisher := repo.NewPublisher(cfg, backend, signer)
-		return publisher.PublishDebFiles(ctx, args)
+		return publisher.PublishDebFiles(ctx, debFiles)
 	},
 }
 

@@ -133,9 +133,42 @@ debpub publish \
   ./mypackage_1.0.0_amd64.deb
 ```
 
-`debpub` generates and publishes both:
-- `InRelease`: Modern inline clearsigned manifest (preferred by APT `1.6+`).
-- `Release` + `Release.gpg`: Traditional manifest with detached signature for backwards compatibility.
+### 5. Publishing Multiple Files, Globs, or Entire Directories
+
+`debpub` natively supports batch publishing in a single atomic transaction. You can supply multiple files, quoted or unquoted glob patterns, and directories:
+
+#### Multiple Explicit Packages:
+```bash
+debpub publish \
+  --storage s3 \
+  --bucket my-debian-repo \
+  --codename stable \
+  ./pkg1_1.0.0_amd64.deb ./pkg2_2.1.0_amd64.deb ./pkg3_0.5.0_all.deb
+```
+
+#### Wildcard / Glob Patterns:
+```bash
+# Quoted patterns are expanded by debpub directly (ideal for CI/CD matrices or Windows):
+debpub publish \
+  --storage s3 \
+  --bucket my-debian-repo \
+  --codename stable \
+  "./dist/*.deb"
+```
+
+#### Recursive Directory Scanning:
+```bash
+# Recursively discovers all .deb, .udeb, and .ddeb packages in the directory tree:
+debpub publish \
+  --storage s3 \
+  --bucket my-debian-repo \
+  --codename stable \
+  ./build/output/
+```
+
+> [!TIP]
+> **Why Batch Publishing is Superior in CI/CD**:
+> Publishing 10 packages in a single batch operation acquires the repository lock **once**, generates and compresses index files (`Packages.gz`, `Packages.xz`, etc.) **once**, and writes an atomic `Release` manifest. This eliminates locking contention between concurrent runner jobs and saves up to 90% of S3 API PUT calls compared to running single-package upload commands in a loop.
 
 ---
 
@@ -197,7 +230,7 @@ debpub publish --config debpub.json --component testing ./mypackage_1.0.0_amd64.
 
 ## Command Reference
 
-### `debpub publish [flags] <package.deb ...>`
+### `debpub publish [flags] <file.deb|pattern|directory...>`
 
 | Flag | Shorthand | Description | Default |
 | :--- | :--- | :--- | :--- |
@@ -218,7 +251,7 @@ debpub publish --config debpub.json --component testing ./mypackage_1.0.0_amd64.
 | `--sftp-user` | | SFTP username | |
 | `--sftp-password` | | SFTP password | |
 | `--sftp-key` | | SFTP SSH private key file path | |
-| `--preserve-versions` | | Keep older package versions in index rather than replacing | `false` |
+| `--preserve-versions` | | Keep older package versions in index rather than replacing | `true` |
 | `--lock` | | Enable distributed repository locking | `true` |
 | `--lock-timeout` | | Maximum time to wait for repository lock | `5m0s` |
 | `--lock-ttl` | | Lock expiration TTL before being marked stale | `10m0s` |

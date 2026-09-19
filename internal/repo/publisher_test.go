@@ -168,3 +168,58 @@ func TestPublisherEndToEnd(t *testing.T) {
 		t.Errorf(".lock file was not released upon completion")
 	}
 }
+
+func TestPublisherBatchWithVersionSorting(t *testing.T) {
+	repoDir := t.TempDir()
+	backend, err := storage.NewFileBackend(repoDir)
+	if err != nil {
+		t.Fatalf("failed to create FileBackend: %v", err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.Codename = "stable"
+	cfg.Component = "main"
+	cfg.PreserveVersions = false // Test that latest version wins when preserve-versions=false
+
+	pub := NewPublisher(cfg, backend, nil)
+
+	// Note: in ASCII alphabetical order, "1.10.0" comes BEFORE "1.2.0".
+	// If candidates were sorted purely by filename string, 1.2.0 would be processed after 1.10.0,
+	// replacing the newer version with the older version.
+	// With Debian version sorting, 1.2.0 is merged first and 1.10.0 is merged last.
+	pkgOlder := createTestDeb(t, "version-test", "1.2.0", "amd64")
+	pkgNewer := createTestDeb(t, "version-test", "1.10.0", "amd64")
+
+	debNewer := filepath.Join(repoDir, "version-test_1.10.0_amd64.deb")
+	debOlder := filepath.Join(repoDir, "version-test_1.2.0_amd64.deb")
+
+	if err := os.WriteFile(debNewer, pkgNewer, 0644); err != nil {
+		t.Fatalf("write newer deb failed: %v", err)
+	}
+	if err := os.WriteFile(debOlder, pkgOlder, 0644); err != nil {
+		t.Fatalf("write older deb failed: %v", err)
+	}
+
+	ctx := context.Background()
+	// Pass in arbitrary order
+	if err := pub.PublishDebFiles(ctx, []string{debNewer, debOlder}); err != nil {
+		t.Fatalf("PublishDebFiles batch failed: %v", err)
+	}
+
+	// Verify that the index retained 1.10.0 and not 1.2.0
+	baseIdx := "dists/stable/main/binary-amd64/Packages"
+	rc, err := backend.Get(ctx, baseIdx)
+	if err != nil {
+		t.Fatalf("failed reading Packages index: %v", err)
+	}
+	idxContent, _ := io.ReadAll(rc)
+	rc.Close()
+
+	strContent := string(idxContent)
+	if !strings.Contains(strContent, "Version: 1.10.0") {
+		t.Errorf("expected latest version 1.10.0 in Packages index, got:\n%s", strContent)
+	}
+	if strings.Contains(strContent, "Version: 1.2.0") {
+		t.Errorf("older version 1.2.0 should have been replaced when PreserveVersions=false, got:\n%s", strContent)
+	}
+}

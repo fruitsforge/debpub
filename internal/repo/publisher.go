@@ -70,6 +70,30 @@ func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) 
 		slog.Info("Inspected candidate Debian package", "package", pkg.Control.Package, "version", pkg.Control.Version, "arch", pkg.Control.Architecture)
 	}
 
+	// 1b. Sort candidates ascending by Debian Version (deb-version(7)) so that if the same package
+	// appears multiple times in this batch, older versions are merged first and newer versions take precedence.
+	type candidateItem struct {
+		pkg  *debian.DebPackage
+		path string
+	}
+	items := make([]candidateItem, len(candidates))
+	for i := range candidates {
+		items[i] = candidateItem{pkg: candidates[i], path: debFilePaths[i]}
+	}
+	slices.SortFunc(items, func(a, b candidateItem) int {
+		if a.pkg.Control.Package != b.pkg.Control.Package {
+			return strings.Compare(a.pkg.Control.Package, b.pkg.Control.Package)
+		}
+		if a.pkg.Control.Architecture != b.pkg.Control.Architecture {
+			return strings.Compare(a.pkg.Control.Architecture, b.pkg.Control.Architecture)
+		}
+		return debian.CompareVersions(a.pkg.Control.Version, b.pkg.Control.Version)
+	})
+	for i := range items {
+		candidates[i] = items[i].pkg
+		debFilePaths[i] = items[i].path
+	}
+
 	// 2. Acquire distributed lock
 	if p.locker != nil {
 		if err := p.locker.Acquire(ctx); err != nil {

@@ -97,7 +97,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfg.Label, "label", "", "Debian repository Label header")
 	rootCmd.PersistentFlags().StringVar(&cfg.Suite, "suite", "", "Debian repository Suite header")
 	rootCmd.PersistentFlags().StringVar(&cfg.Description, "description", "", "Debian repository Description")
-	rootCmd.PersistentFlags().BoolVar(&cfg.PreserveVersions, "preserve-versions", false, "Keep older versions of packages in index")
+	rootCmd.PersistentFlags().BoolVar(&cfg.PreserveVersions, "preserve-versions", true, "Keep older versions of packages in index (default true)")
 
 	// Signing Flags
 	rootCmd.PersistentFlags().BoolVarP(&cfg.Sign, "sign", "s", false, "GPG sign Release manifest (generates Release.gpg and InRelease)")
