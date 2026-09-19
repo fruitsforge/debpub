@@ -17,7 +17,13 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/debpub .
+ARG VERSION=1.0.0-dev
+ARG GIT_COMMIT=none
+ARG BUILD_DATE=unknown
+
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w -X debpub/internal/version.Version=${VERSION} -X debpub/internal/version.GitCommit=${GIT_COMMIT} -X debpub/internal/version.BuildDate=${BUILD_DATE}" \
+    -o /bin/debpub .
 
 # ==========================================
 # Stage 2: Integration test environment

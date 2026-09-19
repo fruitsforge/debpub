@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"debpub/internal/config"
+	"debpub/internal/version"
 )
 
 var (
@@ -15,14 +16,39 @@ var (
 	cfg        *config.Config
 
 	rootCmd = &cobra.Command{
-		Use:   "debpub",
-		Short: "debpub is a modern, high-performance stateless Debian repository publishing tool",
+		Use:     "debpub",
+		Version: version.Version,
+		Short:   "debpub is a modern, high-performance stateless Debian repository publishing tool",
 		Long: `debpub is a stateless Debian repository management and publishing tool in Go.
 It supports distributed locking on AWS S3 (and S3-compatible backends), SFTP,
 and local filesystems, generating gzip, bzip2, and xz compressed indices,
 and dual manifest formats (InRelease and Release.gpg).`,
 	}
 )
+
+const bannerHelpTemplate = `{{banner}}
+
+{{with or .Long .Short}}{{. | trimTrailingWhitespaces}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+
+const bannerUsageTemplate = `{{if .Runnable}}Usage:
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
 
 // Execute runs the debpub CLI command hierarchy.
 func Execute() {
@@ -33,6 +59,10 @@ func Execute() {
 }
 
 func init() {
+	cobra.AddTemplateFunc("banner", version.Header)
+	rootCmd.SetHelpTemplate(bannerHelpTemplate)
+	rootCmd.SetUsageTemplate(bannerUsageTemplate)
+
 	cfg = config.DefaultConfig()
 
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "Path to debpub.json configuration file")
