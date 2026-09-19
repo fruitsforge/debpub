@@ -15,10 +15,11 @@ services:
       retries: 5
 
   sftp:
-    image: atmoz/sftp:alpine
+    build:
+      context: .
+      dockerfile: test/sftp.Dockerfile
     ports:
       - "2222:22"
-    command: testuser:testpassword:::debian
 
   test-runner:
     build:
