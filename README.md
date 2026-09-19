@@ -1,7 +1,8 @@
 # debpub
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Go Report Card](https://goreportcard.com/badge/github.com/debpub/debpub)](https://goreportcard.com/report/github.com/debpub/debpub)
+[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![AI-assisted](https://img.shields.io/badge/AI--assisted-pair--programming-8E75B2?logo=google&logoColor=white)](https://github.com/fruitsforge/debpub#authors--development)
 
 > **Modern, stateless Debian repository packaging and publishing tool written in Go.**  
 > Built for cloud-native CI/CD, ephemeral runners, and high-concurrency environments with distributed locking and full compression support (`gz`, `bz2`, `xz`).
@@ -32,11 +33,11 @@ Debian repository management in modern CI/CD pipelines (such as **Azure DevOps P
 ## Installation & Distribution
 
 ### Standalone Binary
-Download the precompiled static binary for your architecture from [GitHub Releases](https://github.com/debpub/debpub/releases):
+Download the precompiled static binary for your architecture from [GitHub Releases](https://github.com/fruitsforge/debpub/releases):
 
 ```bash
 # Example for Linux amd64
-curl -sSL -o /usr/local/bin/debpub https://github.com/debpub/debpub/releases/latest/download/debpub-linux-amd64
+curl -sSL -o /usr/local/bin/debpub https://github.com/fruitsforge/debpub/releases/latest/download/debpub_0.0.1_linux_amd64.tar.gz
 chmod +x /usr/local/bin/debpub
 ```
 
@@ -44,7 +45,7 @@ chmod +x /usr/local/bin/debpub
 Run `debpub` directly inside any container pipeline:
 
 ```bash
-docker run --rm -v $(pwd):/workspace ghcr.io/debpub/debpub:latest publish --config debpub.json ./package.deb
+docker run --rm -v $(pwd):/workspace ghcr.io/fruitsforge/debpub:latest publish --config debpub.json ./package.deb
 ```
 
 ---
@@ -249,7 +250,7 @@ If you are interested in building, testing, or contributing to `debpub`, please 
 ## Authors & Development
 
 - **Architecture & Maintainer**: Vladimir & Contributors
-- **Development**: Built with pair-programming assistance from Advanced AI Coding Agents.
+- **Development**: Architected and developed with pair-programming assistance from Advanced AI Coding Agents (Google Antigravity / Gemini).
 
 ---
 

@@ -6,7 +6,7 @@ This guide is intended for developers, maintainers, and contributors working on 
 
 ## 1. Prerequisites
 
-- **Go**: Version `1.22+` (or `1.24+` recommended).
+- **Go**: Version `1.27+`.
 - **Docker & Docker Compose**: For hermetic builds and automated integration testing with MinIO and SFTP.
 - **Make**: For running developer workflow targets.
 - **Git**: For version control.
