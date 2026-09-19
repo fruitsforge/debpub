@@ -3,9 +3,17 @@
 BINARY_NAME=debpub
 BIN_DIR=bin
 
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "1.0.0-dev")
+BASE_VERSION ?= 1.0.0-dev
+GIT_TAG ?= $(shell git describe --tags --exact-match 2>/dev/null)
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+DIRTY ?= $(shell git diff --quiet 2>/dev/null || echo "-dirty")
 BUILD_DATE ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+ifneq ($(GIT_TAG),)
+	VERSION ?= $(GIT_TAG)
+else
+	VERSION ?= $(BASE_VERSION)+$(GIT_COMMIT)$(DIRTY)
+endif
 
 LDFLAGS=-s -w \
 	-X debpub/internal/version.Version=$(VERSION) \
