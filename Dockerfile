@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG GO_VERSION=1.27.1
-ARG UBUNTU_VERSION=24.04
+ARG UBUNTU_VERSION=26.04
 
 # ==========================================
 # Stage 1: Build static Go binary
@@ -43,7 +43,7 @@ WORKDIR /workspace
 ENTRYPOINT ["debpub"]
 
 # ==========================================
-# Stage 3: Production Runtime Image (Ubuntu 24.04 LTS)
+# Stage 3: Production Runtime Image (Ubuntu 26.04 LTS)
 # Includes GPG, SSH/SFTP client, MinIO client (mc), curl, jq, and dpkg
 # ==========================================
 FROM ubuntu:${UBUNTU_VERSION} AS final
