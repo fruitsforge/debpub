@@ -37,8 +37,8 @@ docker-build:
 		-t $(BINARY_NAME):latest .
 
 docker-test:
-	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit test-runner
-	docker compose -f docker-compose.test.yml down
+	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test-runner
+	docker compose -f docker-compose.test.yml down -v
 
 clean:
 	rm -rf $(BIN_DIR)

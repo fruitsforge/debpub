@@ -40,7 +40,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     openssh-client \
     jq \
+    git \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy Go toolchain from builder stage
+COPY --from=builder /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 COPY --from=builder /bin/debpub /usr/local/bin/debpub
 

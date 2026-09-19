@@ -34,6 +34,14 @@ services:
       AWS_ACCESS_KEY_ID: minioadmin
       AWS_SECRET_ACCESS_KEY: minioadminpassword
       AWS_REGION: us-east-1
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: debian-test
+      SFTP_HOST: sftp
+      SFTP_PORT: 22
+      SFTP_USER: testuser
+      SFTP_PASSWORD: testpassword
+      SFTP_BASEPATH: /home/testuser/debian
+      INTEGRATION_TEST: "1"
     volumes:
       - .:/workspace
-    entrypoint: ["sh", "-c", "echo 'Integration test environment ready'"]
+    entrypoint: ["/bin/bash", "/workspace/test/integration/run.sh"]

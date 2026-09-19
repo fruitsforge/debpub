@@ -212,6 +212,10 @@ func (s *SFTPBackend) PutIfNotExist(ctx context.Context, filePath string, data [
 		if os.IsExist(err) {
 			return ErrAlreadyExists
 		}
+		// Some SFTP servers (e.g. OpenSSH internal-sftp) return SSH_FX_FAILURE instead of SSH_FX_FILE_ALREADY_EXISTS on O_EXCL collision
+		if _, statErr := s.sftpClient.Stat(fullPath); statErr == nil {
+			return ErrAlreadyExists
+		}
 		return fmt.Errorf("sftp open exclusive: %w", err)
 	}
 	defer f.Close()
