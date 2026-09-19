@@ -1,6 +1,6 @@
 services:
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -9,13 +9,13 @@ services:
       MINIO_ROOT_PASSWORD: minioadminpassword
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 3s
+      timeout: 3s
       retries: 5
 
   sftp:
-    image: atmoz/sftp:latest
+    image: atmoz/sftp:alpine
     ports:
       - "2222:22"
     command: testuser:testpassword:::debian
