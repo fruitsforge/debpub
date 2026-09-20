@@ -11,21 +11,14 @@ dist/
 *.test
 *.out
 
-# Internal AI discussions, prompts, and specs
+# Internal AI discussions, prompts, and local tool configs
 doc/ai/
-/.skills/
-/.antigravity/
-/.idea/.gitignore
-/.idea/go.imports.xml
-/.idea/misc.xml
-/.idea/modules.xml
-/.idea/vcs.xml
-/debpub.iml
-
+/.junie/
+/.claude/
+/skills-lock.json
 # OS files
 .DS_Store
 
-/agent/skills/
-/.junie/
-/.claude/
-/.agents/
+# IDE files
+.idea/
+*.iml
