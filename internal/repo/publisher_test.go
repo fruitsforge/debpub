@@ -3,8 +3,6 @@ package repo
 import (
 	"context"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,17 +10,6 @@ import (
 	"debpub/internal/storage"
 	"debpub/internal/testutil"
 )
-
-// Helper to construct a valid minimal in-memory .deb file
-func createTestDeb(t *testing.T, pkgName, version, arch string) []byte {
-	t.Helper()
-	return testutil.CreateTestDeb(t, testutil.DebOptions{
-		Package:      pkgName,
-		Version:      version,
-		Architecture: arch,
-		Description:  "Sample test package for debpub",
-	})
-}
 
 func TestPublisherEndToEnd(t *testing.T) {
 	repoDir := t.TempDir()
@@ -40,19 +27,9 @@ func TestPublisherEndToEnd(t *testing.T) {
 
 	pub := NewPublisher(cfg, backend, nil)
 
-	// Create 2 test deb packages
-	pkg1Data := createTestDeb(t, "sample-service", "1.0.0", "amd64")
-	pkg2Data := createTestDeb(t, "sample-service", "1.1.0", "amd64")
-
-	debFile1 := filepath.Join(repoDir, "sample-service_1.0.0_amd64.deb")
-	debFile2 := filepath.Join(repoDir, "sample-service_1.1.0_amd64.deb")
-
-	if err := os.WriteFile(debFile1, pkg1Data, 0644); err != nil {
-		t.Fatalf("write deb1 failed: %v", err)
-	}
-	if err := os.WriteFile(debFile2, pkg2Data, 0644); err != nil {
-		t.Fatalf("write deb2 failed: %v", err)
-	}
+	// Create 2 test deb packages using shared test utility
+	debFile1 := testutil.WriteTestDebToDisk(t, repoDir, "sample-service", "1.0.0", "amd64")
+	debFile2 := testutil.WriteTestDebToDisk(t, repoDir, "sample-service", "1.1.0", "amd64")
 
 	ctx := context.Background()
 
@@ -136,18 +113,8 @@ func TestPublisherBatchWithVersionSorting(t *testing.T) {
 	// If candidates were sorted purely by filename string, 1.2.0 would be processed after 1.10.0,
 	// replacing the newer version with the older version.
 	// With Debian version sorting, 1.2.0 is merged first and 1.10.0 is merged last.
-	pkgOlder := createTestDeb(t, "version-test", "1.2.0", "amd64")
-	pkgNewer := createTestDeb(t, "version-test", "1.10.0", "amd64")
-
-	debNewer := filepath.Join(repoDir, "version-test_1.10.0_amd64.deb")
-	debOlder := filepath.Join(repoDir, "version-test_1.2.0_amd64.deb")
-
-	if err := os.WriteFile(debNewer, pkgNewer, 0644); err != nil {
-		t.Fatalf("write newer deb failed: %v", err)
-	}
-	if err := os.WriteFile(debOlder, pkgOlder, 0644); err != nil {
-		t.Fatalf("write older deb failed: %v", err)
-	}
+	debOlder := testutil.WriteTestDebToDisk(t, repoDir, "version-test", "1.2.0", "amd64")
+	debNewer := testutil.WriteTestDebToDisk(t, repoDir, "version-test", "1.10.0", "amd64")
 
 	ctx := context.Background()
 	// Pass in arbitrary order

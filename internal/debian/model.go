@@ -159,19 +159,19 @@ func (s *PackageStanza) ToParagraph() *Paragraph {
 }
 
 // Format deb822 string output for a Paragraph
-//
-// noinspection GoUnhandledErrorResult
-//
-//nolint:errcheck // Builder writes never fail
 func (p *Paragraph) String() string {
 	var sb strings.Builder
+	writef := func(format string, a ...any) {
+		_, _ = fmt.Fprintf(&sb, format, a...)
+	}
+
 	for _, key := range p.Order {
 		val := p.Fields[key]
 		lines := strings.Split(val, "\n")
 		if len(lines) == 1 {
-			fmt.Fprintf(&sb, "%s: %s\n", key, val)
+			writef("%s: %s\n", key, val)
 		} else {
-			fmt.Fprintf(&sb, "%s:\n", key)
+			writef("%s:\n", key)
 			for _, line := range lines {
 				switch {
 				case line == "":
