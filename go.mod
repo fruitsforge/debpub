@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
-	github.com/aws/smithy-go v1.28.1
+	github.com/aws/smithy-go v1.28.2
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb
 	github.com/dsnet/compress v0.0.1
 	github.com/klauspost/compress v1.20.0
