@@ -10,6 +10,10 @@ import (
 )
 
 // GenerateRelease builds the Release file string content from metadata and index checksums.
+//
+// noinspection GoUnhandledErrorResult
+//
+//nolint:errcheck // Buffer writes never fail
 func GenerateRelease(m *ReleaseManifest) []byte {
 	var buf bytes.Buffer
 

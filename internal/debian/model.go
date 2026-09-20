@@ -159,6 +159,10 @@ func (s *PackageStanza) ToParagraph() *Paragraph {
 }
 
 // Format deb822 string output for a Paragraph
+//
+// noinspection GoUnhandledErrorResult
+//
+//nolint:errcheck // Builder writes never fail
 func (p *Paragraph) String() string {
 	var sb strings.Builder
 	for _, key := range p.Order {
