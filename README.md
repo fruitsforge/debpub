@@ -195,8 +195,8 @@ To avoid repeating flags across CI/CD pipeline steps, define a `debpub.json` fil
   },
   "lock": {
     "enabled": true,
-    "timeout": "5m",
-    "ttl": "10m"
+    "timeout": "2m",
+    "ttl": "3m"
   },
   "s3": {
     "endpoint": "",
@@ -213,18 +213,20 @@ Run with configuration:
 debpub publish --config debpub.json ./mypackage_1.0.0_amd64.deb
 ```
 
-### Option Precedence Hierarchy
-`debpub` strictly enforces layered configuration priority:
+### Option Precedence & Smart Defaults
+
+`debpub` strictly enforces a layered configuration priority with built-in smart defaults and dual format flexibility:
 1. **Command-line flags** (highest priority; explicitly overrides any setting).
 2. **Config file** (values from `debpub.json` via `--config`).
-3. **Environment variables** (e.g., standard AWS credential variables `AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, `AWS_REGION`).
-4. **Built-in defaults** (e.g. `--lock-timeout 5m`, `--component main`).
+3. **Environment variables** (e.g., `AWS_REGION`, `AWS_PROFILE`, `USER`).
+4. **Built-in defaults** (e.g. `--lock-timeout 2m`, `--lock-ttl 3m`, `--component main`, `--dir .`).
 
-For example, you can use `debpub.json` for base bucket and codename settings, and override `--component testing` dynamically on the command line:
-
-```bash
-debpub publish --config debpub.json --component testing ./mypackage_1.0.0_amd64.deb
-```
+#### Smart Auto-Detection & Fallbacks
+- **Suite fallback**: If `--suite` is omitted, it automatically defaults to the distribution `--codename`.
+- **GPG Signing**: Supplying `--gpg-key` automatically enables Release manifest signing (`--sign`) without requiring an explicit `-s` flag.
+- **SFTP User**: If `--sftp-user` is omitted, it automatically defaults to the invoking system user (`$USER`).
+- **Flexible Time Formats**: `--lock-timeout` and `--lock-ttl` accept both unit-based duration strings (e.g. `2m`, `120s`, `3m`, `180s`) and raw integer seconds without units (e.g. `120`, `180`).
+- **Auditable Logging**: When defaults or smart fallbacks are applied, `debpub` logs them to standard output for complete transparency in CI/CD pipelines.
 
 ---
 
@@ -236,31 +238,31 @@ debpub publish --config debpub.json --component testing ./mypackage_1.0.0_amd64.
 | :--- | :--- | :--- | :--- |
 | `--config` | | Path to `debpub.json` configuration file | |
 | `--storage` | | Storage backend (`s3`, `sftp`, `file`) | `file` |
-| `--codename` | `-c` | Debian distribution codename (`stable`, `bookworm`, `jammy`) | |
+| `--codename` | `-c` | Debian distribution codename (`stable`, `bookworm`, `jammy`) | *(Required)* |
 | `--component` | `-m` | Debian repository component (`main`, `contrib`, `non-free`) | `main` |
 | `--dir` | | Local repository root directory (for `file` storage) | `.` |
-| `--bucket` | `-b` | S3 bucket name (for `s3` storage) | |
-| `--prefix` | | S3 or remote directory path prefix | |
+| `--bucket` | `-b` | S3 bucket name (for `s3` storage) | *(Required for S3)* |
+| `--prefix` | | S3 or remote directory path prefix | `""` |
 | `--s3-endpoint` | | Custom S3 endpoint URL (MinIO, Ceph, R2) | |
 | `--s3-force-path-style` | | Use path-style S3 URLs (required for MinIO) | `false` |
 | `--s3-legacy-locking` | | Use check-then-put locking instead of S3 conditional writes | `false` |
 | `--s3-profile` | | AWS profile name to use for credentials and configuration | |
 | `--s3-region` | | AWS region for S3 bucket (e.g. `us-east-1`, `eu-central-1`) | |
-| `--sftp-host` | | SFTP server hostname / IP | |
+| `--sftp-host` | | SFTP server hostname / IP | *(Required for SFTP)* |
 | `--sftp-port` | | SFTP port | `22` |
-| `--sftp-user` | | SFTP username | |
+| `--sftp-user` | | SFTP username | Current OS `$USER` |
 | `--sftp-password` | | SFTP password | |
 | `--sftp-key` | | SFTP SSH private key file path | |
 | `--preserve-versions` | | Keep older package versions in index rather than replacing | `true` |
 | `--lock` | | Enable distributed repository locking | `true` |
-| `--lock-timeout` | | Maximum time to wait for repository lock | `5m0s` |
-| `--lock-ttl` | | Lock expiration TTL before being marked stale | `10m0s` |
-| `--sign` | `-s` | Enable GPG signing of `Release` manifest | `false` |
+| `--lock-timeout` | | Max wait time for lock (accepts `2m`, `120s`, or `120`) | `2m` (120s) |
+| `--lock-ttl` | | Lock expiration TTL before being marked stale (accepts `3m`, `180s`, or `180`) | `3m` (180s) |
+| `--sign` | `-s` | Enable GPG signing of `Release` manifest | `false` (auto if `--gpg-key` set) |
 | `--gpg-key` | `-k` | GPG signing key ID, email, or fingerprint | |
 | `--gpg-passphrase` | | GPG key passphrase | |
 | `--origin` | | Custom repository `Origin` header | |
 | `--label` | | Custom repository `Label` header | |
-| `--suite` | | Custom repository `Suite` header | |
+| `--suite` | | Custom repository `Suite` header | Defaults to `--codename` |
 | `--description` | | Repository `Description` header | |
 
 ---

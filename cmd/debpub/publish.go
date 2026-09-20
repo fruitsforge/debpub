@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/cobra"
 
+	"debpub/internal/config"
 	"debpub/internal/debian"
 	"debpub/internal/repo"
 	"debpub/internal/storage"
@@ -35,6 +38,8 @@ Positional arguments can be:
 		if err := loadConfigWithPrecedence(cmd); err != nil {
 			return fmt.Errorf("config error: %w", err)
 		}
+
+		normalizeAndLogConfig(cmd, cfg)
 
 		if cfg.Codename == "" {
 			return errors.New("missing required --codename (-c) or codename in config file")
@@ -64,6 +69,44 @@ Positional arguments can be:
 	},
 }
 
+func normalizeAndLogConfig(cmd *cobra.Command, cfg *config.Config) {
+	// Storage and LocalDir
+	if cfg.Storage == "file" {
+		if !cmd.Flags().Changed("dir") && cfg.LocalDir == config.DefaultLocalDir {
+			slog.Info("Using default local repository directory", "dir", cfg.LocalDir)
+		}
+	}
+
+	// Codename / Suite fallback
+	if cfg.Suite == "" && cfg.Codename != "" {
+		cfg.Suite = cfg.Codename
+		slog.Info("Repository suite not specified; defaulting to codename", "suite", cfg.Suite)
+	}
+
+	// Smart GPG Signing
+	if cfg.GPGKey != "" && !cfg.Sign && !cmd.Flags().Changed("sign") {
+		cfg.Sign = true
+		slog.Info("GPG signing key provided; auto-enabling Release manifest signing", "key", cfg.GPGKey)
+	}
+
+	// SFTP User fallback
+	if cfg.Storage == "sftp" && cfg.SFTPUser == "" {
+		if u := os.Getenv("USER"); u != "" {
+			cfg.SFTPUser = u
+			slog.Info("SFTP user not specified; defaulting to current system user", "user", cfg.SFTPUser)
+		}
+	}
+
+	// Lock settings logging
+	if cfg.LockEnabled {
+		slog.Info("Distributed repository locking active",
+			"timeout", config.FormatDurationDisplay(cfg.LockTimeout),
+			"ttl", config.FormatDurationDisplay(cfg.LockTTL))
+	} else {
+		slog.Warn("Distributed repository locking is disabled")
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(publishCmd)
 }
@@ -73,7 +116,7 @@ func buildStorageBackend(ctx context.Context) (storage.StorageBackend, error) {
 	case "file":
 		baseDir := cfg.LocalDir
 		if baseDir == "" {
-			baseDir = "."
+			baseDir = config.DefaultLocalDir
 		}
 		return storage.NewFileBackend(baseDir)
 

@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"debpub/internal/config"
 	"debpub/internal/testutil"
 )
 
@@ -126,4 +128,51 @@ func createDummyDebContent(t *testing.T, pkgName, version, arch string) []byte {
 		Architecture: arch,
 		Description:  "Test package",
 	})
+}
+
+func TestFlexibleDurationFlagParsing(t *testing.T) {
+	// Test setting via flexible duration flag
+	var d time.Duration
+	flagVal := newFlexibleDurationValue(2*time.Minute, &d)
+
+	if err := flagVal.Set("120"); err != nil {
+		t.Fatalf("flagVal.Set(\"120\") failed: %v", err)
+	}
+	if d != 2*time.Minute {
+		t.Errorf("d = %v, want 2m (from 120)", d)
+	}
+
+	if err := flagVal.Set("3m"); err != nil {
+		t.Fatalf("flagVal.Set(\"3m\") failed: %v", err)
+	}
+	if d != 3*time.Minute {
+		t.Errorf("d = %v, want 3m (from 3m)", d)
+	}
+
+	if flagVal.String() != "3m" {
+		t.Errorf("flagVal.String() = %q, want \"3m\"", flagVal.String())
+	}
+}
+
+func TestSmartDefaultsAndLogging(t *testing.T) {
+	testCfg := config.DefaultConfig()
+	testCfg.Codename = "bookworm"
+	testCfg.Suite = "" // should default to codename
+
+	normalizeAndLogConfig(publishCmd, testCfg)
+
+	if testCfg.Suite != "bookworm" {
+		t.Errorf("Suite = %q, want defaulted to %q", testCfg.Suite, "bookworm")
+	}
+	if testCfg.LocalDir != "." {
+		t.Errorf("LocalDir = %q, want default %q", testCfg.LocalDir, ".")
+	}
+
+	// Smart GPG signing
+	testCfg.GPGKey = "TEST_KEY_ID"
+	testCfg.Sign = false
+	normalizeAndLogConfig(publishCmd, testCfg)
+	if !testCfg.Sign {
+		t.Errorf("Sign = false, want true when GPGKey is set")
+	}
 }

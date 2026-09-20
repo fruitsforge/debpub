@@ -73,10 +73,11 @@ type GPGConfig struct {
 }
 
 // LockConfig holds repository locking settings in configuration files.
+// Timeout and TTL accept both duration strings (e.g. "2m", "120s", "120") and numeric seconds (e.g. 120).
 type LockConfig struct {
-	Enabled *bool  `json:"enabled"`
-	Timeout string `json:"timeout"`
-	TTL     string `json:"ttl"`
+	Enabled *bool `json:"enabled"`
+	Timeout any   `json:"timeout"`
+	TTL     any   `json:"ttl"`
 }
 
 // S3Config holds AWS S3 storage parameters in configuration files.
@@ -100,13 +101,14 @@ type SFTPConfig struct {
 // DefaultConfig returns baseline configuration defaults.
 func DefaultConfig() *Config {
 	return &Config{
-		Storage:          "file",
-		Component:        "main",
-		LockEnabled:      true,
-		LockTimeout:      5 * time.Minute,
-		LockTTL:          10 * time.Minute,
-		SFTPPort:         22,
-		PreserveVersions: true,
+		Storage:          DefaultStorage,
+		LocalDir:         DefaultLocalDir,
+		Component:        DefaultComponent,
+		LockEnabled:      DefaultLockEnabled,
+		LockTimeout:      DefaultLockTimeout,
+		LockTTL:          DefaultLockTTL,
+		SFTPPort:         DefaultSFTPPort,
+		PreserveVersions: DefaultPreserveVersions,
 		ExtraMetadata:    make(map[string]string),
 	}
 }
@@ -179,13 +181,13 @@ func LoadConfigFile(path string, target *Config) error {
 		if schema.Lock.Enabled != nil {
 			target.LockEnabled = *schema.Lock.Enabled
 		}
-		if schema.Lock.Timeout != "" {
-			if d, err := time.ParseDuration(schema.Lock.Timeout); err == nil {
+		if schema.Lock.Timeout != nil {
+			if d, err := parseJSONDuration(schema.Lock.Timeout); err == nil && d > 0 {
 				target.LockTimeout = d
 			}
 		}
-		if schema.Lock.TTL != "" {
-			if d, err := time.ParseDuration(schema.Lock.TTL); err == nil {
+		if schema.Lock.TTL != nil {
+			if d, err := parseJSONDuration(schema.Lock.TTL); err == nil && d > 0 {
 				target.LockTTL = d
 			}
 		}
@@ -230,4 +232,23 @@ func LoadConfigFile(path string, target *Config) error {
 	maps.Copy(target.ExtraMetadata, schema.Metadata)
 
 	return nil
+}
+
+func parseJSONDuration(val any) (time.Duration, error) {
+	switch v := val.(type) {
+	case string:
+		return ParseDurationFlexible(v)
+	case float64:
+		if v < 0 {
+			return 0, fmt.Errorf("duration cannot be negative: %v", v)
+		}
+		return time.Duration(v) * time.Second, nil
+	case int:
+		if v < 0 {
+			return 0, fmt.Errorf("duration cannot be negative: %d", v)
+		}
+		return time.Duration(v) * time.Second, nil
+	default:
+		return 0, fmt.Errorf("unexpected duration type: %T", val)
+	}
 }

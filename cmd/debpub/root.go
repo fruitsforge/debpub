@@ -71,10 +71,10 @@ func init() {
 	cfg = config.DefaultConfig()
 
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "Path to debpub.json configuration file")
-	rootCmd.PersistentFlags().StringVar(&cfg.Storage, "storage", "file", "Storage backend: s3, sftp, file")
+	rootCmd.PersistentFlags().StringVar(&cfg.Storage, "storage", cfg.Storage, "Storage backend: s3, sftp, file")
 	rootCmd.PersistentFlags().StringVarP(&cfg.Codename, "codename", "c", "", "Debian distribution codename (e.g. stable, bookworm, jammy)")
-	rootCmd.PersistentFlags().StringVarP(&cfg.Component, "component", "m", "main", "Debian repository component (e.g. main, contrib, non-free)")
-	rootCmd.PersistentFlags().StringVar(&cfg.LocalDir, "dir", "", "Local repository directory path when using file storage")
+	rootCmd.PersistentFlags().StringVarP(&cfg.Component, "component", "m", cfg.Component, "Debian repository component (e.g. main, contrib, non-free)")
+	rootCmd.PersistentFlags().StringVar(&cfg.LocalDir, "dir", cfg.LocalDir, "Local repository directory path when using file storage")
 
 	// S3 Flags
 	rootCmd.PersistentFlags().StringVarP(&cfg.Bucket, "bucket", "b", "", "AWS S3 bucket name")
@@ -87,27 +87,56 @@ func init() {
 
 	// SFTP Flags
 	rootCmd.PersistentFlags().StringVar(&cfg.SFTPHost, "sftp-host", "", "SFTP server host")
-	rootCmd.PersistentFlags().IntVar(&cfg.SFTPPort, "sftp-port", 22, "SFTP server port")
-	rootCmd.PersistentFlags().StringVar(&cfg.SFTPUser, "sftp-user", "", "SFTP username")
+	rootCmd.PersistentFlags().IntVar(&cfg.SFTPPort, "sftp-port", cfg.SFTPPort, "SFTP server port")
+	rootCmd.PersistentFlags().StringVar(&cfg.SFTPUser, "sftp-user", "", "SFTP username (defaults to current system user if unset)")
 	rootCmd.PersistentFlags().StringVar(&cfg.SFTPPassword, "sftp-password", "", "SFTP password")
 	rootCmd.PersistentFlags().StringVar(&cfg.SFTPKeyPath, "sftp-key", "", "SFTP SSH private key file path")
 
 	// Lock Flags
-	rootCmd.PersistentFlags().BoolVar(&cfg.LockEnabled, "lock", true, "Enable distributed repository locking")
-	rootCmd.PersistentFlags().DurationVar(&cfg.LockTimeout, "lock-timeout", cfg.LockTimeout, "Maximum duration to wait for repository lock")
-	rootCmd.PersistentFlags().DurationVar(&cfg.LockTTL, "lock-ttl", cfg.LockTTL, "Lock expiration TTL before being marked stale")
+	rootCmd.PersistentFlags().BoolVar(&cfg.LockEnabled, "lock", cfg.LockEnabled, "Enable distributed repository locking")
+	rootCmd.PersistentFlags().Var(newFlexibleDurationValue(cfg.LockTimeout, &cfg.LockTimeout), "lock-timeout", "Maximum duration to wait for repository lock (accepts units like 2m, 120s or raw seconds like 120)")
+	rootCmd.PersistentFlags().Var(newFlexibleDurationValue(cfg.LockTTL, &cfg.LockTTL), "lock-ttl", "Lock expiration TTL before being marked stale (accepts units like 3m, 180s or raw seconds like 180)")
 
 	// Repository Metadata Flags
 	rootCmd.PersistentFlags().StringVar(&cfg.Origin, "origin", "", "Debian repository Origin header")
 	rootCmd.PersistentFlags().StringVar(&cfg.Label, "label", "", "Debian repository Label header")
-	rootCmd.PersistentFlags().StringVar(&cfg.Suite, "suite", "", "Debian repository Suite header")
+	rootCmd.PersistentFlags().StringVar(&cfg.Suite, "suite", "", "Debian repository Suite header (defaults to codename if unset)")
 	rootCmd.PersistentFlags().StringVar(&cfg.Description, "description", "", "Debian repository Description")
-	rootCmd.PersistentFlags().BoolVar(&cfg.PreserveVersions, "preserve-versions", true, "Keep older versions of packages in index (default true)")
+	rootCmd.PersistentFlags().BoolVar(&cfg.PreserveVersions, "preserve-versions", cfg.PreserveVersions, "Keep older versions of packages in index")
 
 	// Signing Flags
-	rootCmd.PersistentFlags().BoolVarP(&cfg.Sign, "sign", "s", false, "GPG sign Release manifest (generates Release.gpg and InRelease)")
+	rootCmd.PersistentFlags().BoolVarP(&cfg.Sign, "sign", "s", false, "GPG sign Release manifest (generates Release.gpg and InRelease; auto-enabled if --gpg-key is provided)")
 	rootCmd.PersistentFlags().StringVarP(&cfg.GPGKey, "gpg-key", "k", "", "GPG signing key ID or email")
 	rootCmd.PersistentFlags().StringVar(&cfg.GPGPassphrase, "gpg-passphrase", "", "GPG key passphrase")
+}
+
+type flexibleDurationValue struct {
+	target *time.Duration
+}
+
+func newFlexibleDurationValue(val time.Duration, target *time.Duration) *flexibleDurationValue {
+	*target = val
+	return &flexibleDurationValue{target: target}
+}
+
+func (d *flexibleDurationValue) Set(s string) error {
+	v, err := config.ParseDurationFlexible(s)
+	if err != nil {
+		return err
+	}
+	*d.target = v
+	return nil
+}
+
+func (d *flexibleDurationValue) Type() string {
+	return "duration"
+}
+
+func (d *flexibleDurationValue) String() string {
+	if d.target == nil {
+		return "0s"
+	}
+	return config.FormatDurationDisplay(*d.target)
 }
 
 // loadConfigWithPrecedence merges --config debpub.json into cfg without overwriting CLI flags explicitly set by user.

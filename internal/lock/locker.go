@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"debpub/internal/config"
 	"debpub/internal/storage"
 )
 
@@ -54,11 +55,11 @@ func NewLocker(opts LockerOptions) *Locker {
 	}
 	ttl := opts.TTL
 	if ttl <= 0 {
-		ttl = 10 * time.Minute
+		ttl = config.DefaultLockTTL
 	}
 	timeout := opts.Timeout
 	if timeout <= 0 {
-		timeout = 5 * time.Minute
+		timeout = config.DefaultLockTimeout
 	}
 
 	lockPath := path.Join("dists", opts.Codename, ".lock")

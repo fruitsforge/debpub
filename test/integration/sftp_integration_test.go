@@ -193,3 +193,68 @@ func TestSFTPBackend_PublisherEndToEnd(t *testing.T) {
 		}
 	})
 }
+
+func TestSFTP_PublishWithDefaults(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	basePath := fmt.Sprintf("/home/testuser/debian/test-defaults-%d", time.Now().UnixNano())
+	backend, err := getSFTPBackend(basePath)
+	if err != nil {
+		t.Fatalf("getSFTPBackend failed: %v", err)
+	}
+
+	// Initialize config using DefaultConfig()
+	cfg := config.DefaultConfig()
+	cfg.Codename = "bookworm"
+
+	// Verify defaults before publish
+	if cfg.Component != "main" {
+		t.Errorf("expected default component 'main', got %q", cfg.Component)
+	}
+	if cfg.LockTimeout != 2*time.Minute {
+		t.Errorf("expected default LockTimeout 2m, got %v", cfg.LockTimeout)
+	}
+	if cfg.LockTTL != 3*time.Minute {
+		t.Errorf("expected default LockTTL 3m, got %v", cfg.LockTTL)
+	}
+	if cfg.SFTPPort != 22 {
+		t.Errorf("expected default SFTPPort 22, got %d", cfg.SFTPPort)
+	}
+
+	// Also verify that flexible duration parsing works for lock settings
+	customTimeout, err := config.ParseDurationFlexible("120")
+	if err != nil || customTimeout != 2*time.Minute {
+		t.Fatalf("ParseDurationFlexible(\"120\") failed: %v, got %v", err, customTimeout)
+	}
+	cfg.LockTimeout = customTimeout
+
+	customTTL, err := config.ParseDurationFlexible("180")
+	if err != nil || customTTL != 3*time.Minute {
+		t.Fatalf("ParseDurationFlexible(\"180\") failed: %v, got %v", err, customTTL)
+	}
+	cfg.LockTTL = customTTL
+
+	publisher := repo.NewPublisher(cfg, backend, nil)
+	tempDir := t.TempDir()
+	deb := writeDebToDisk(t, tempDir, "default-pkg", "1.0.0", "amd64")
+
+	err = publisher.PublishDebFiles(ctx, []string{deb})
+	if err != nil {
+		t.Fatalf("PublishDebFiles with defaults failed: %v", err)
+	}
+
+	// Verify pool file and Packages index exist on SFTP
+	poolPath := "pool/main/d/default-pkg/default-pkg_1.0.0_amd64.deb"
+	exists, err := backend.Exists(ctx, poolPath)
+	if err != nil || !exists {
+		t.Fatalf("expected pool file %q to exist on SFTP", poolPath)
+	}
+
+	// Verify lock was released
+	lockPath := "dists/bookworm/.lock"
+	lExists, _ := backend.Exists(ctx, lockPath)
+	if lExists {
+		t.Fatalf("expected .lock to be cleaned up after publish on SFTP")
+	}
+}

@@ -34,6 +34,23 @@ func TestLockInfoUnmarshalAliases(t *testing.T) {
 	}
 }
 
+func TestNewLocker_Defaults(t *testing.T) {
+	tempDir := t.TempDir()
+	backend, _ := storage.NewFileBackend(tempDir)
+
+	locker := NewLocker(LockerOptions{
+		Backend:  backend,
+		Codename: "bookworm",
+	})
+
+	if locker.timeout != 2*time.Minute {
+		t.Errorf("locker.timeout = %v, want default 2m", locker.timeout)
+	}
+	if locker.ttl != 3*time.Minute {
+		t.Errorf("locker.ttl = %v, want default 3m", locker.ttl)
+	}
+}
+
 func TestLockerAcquireAndRelease(t *testing.T) {
 	tempDir := t.TempDir()
 	backend, _ := storage.NewFileBackend(tempDir)

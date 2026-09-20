@@ -237,3 +237,60 @@ func TestS3Backend_MinIO_PublisherEndToEnd(t *testing.T) {
 		}
 	})
 }
+
+func TestS3_PublishWithDefaults(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	endpoint := getEnvOrDefault("S3_ENDPOINT", "http://minio:9000")
+	bucket := getEnvOrDefault("S3_BUCKET", "debian-test")
+	region := getEnvOrDefault("AWS_REGION", "us-east-1")
+	accessKey := getEnvOrDefault("AWS_ACCESS_KEY_ID", "minioadmin")
+	secretKey := getEnvOrDefault("AWS_SECRET_ACCESS_KEY", "minioadminpassword")
+
+	client, err := getS3Client(ctx, endpoint, region, accessKey, secretKey)
+	if err != nil {
+		t.Fatalf("getS3Client failed: %v", err)
+	}
+
+	prefix := fmt.Sprintf("test-s3-defaults-%d", time.Now().UnixNano())
+	backend := storage.NewS3Backend(storage.S3Options{
+		Client: client,
+		Bucket: bucket,
+		Prefix: prefix,
+	})
+
+	cfg := config.DefaultConfig()
+	cfg.Codename = "bookworm"
+
+	if cfg.Component != "main" {
+		t.Errorf("expected default component 'main', got %q", cfg.Component)
+	}
+	if cfg.LockTimeout != 2*time.Minute {
+		t.Errorf("expected default LockTimeout 2m, got %v", cfg.LockTimeout)
+	}
+	if cfg.LockTTL != 3*time.Minute {
+		t.Errorf("expected default LockTTL 3m, got %v", cfg.LockTTL)
+	}
+
+	publisher := repo.NewPublisher(cfg, backend, nil)
+	tempDir := t.TempDir()
+	deb := writeDebToDisk(t, tempDir, "default-s3-pkg", "1.0.0", "amd64")
+
+	err = publisher.PublishDebFiles(ctx, []string{deb})
+	if err != nil {
+		t.Fatalf("PublishDebFiles with defaults failed on S3: %v", err)
+	}
+
+	poolPath := "pool/main/d/default-s3-pkg/default-s3-pkg_1.0.0_amd64.deb"
+	exists, err := backend.Exists(ctx, poolPath)
+	if err != nil || !exists {
+		t.Fatalf("expected pool file %q to exist on S3", poolPath)
+	}
+
+	lockPath := "dists/bookworm/.lock"
+	lExists, _ := backend.Exists(ctx, lockPath)
+	if lExists {
+		t.Fatalf("expected .lock to be cleaned up after publish on S3")
+	}
+}
