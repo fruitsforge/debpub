@@ -52,13 +52,9 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 `
 
 // Execute runs the debpub CLI command hierarchy.
-//
-// noinspection GoUnhandledErrorResult
-//
-//nolint:errcheck // Stderr write on fatal exit
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

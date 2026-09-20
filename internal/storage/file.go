@@ -41,7 +41,7 @@ func (f *FileBackend) resolve(path string) string {
 }
 
 // Get retrieves an object reader from local filesystem storage.
-func (f *FileBackend) Get(ctx context.Context, path string) (io.ReadCloser, error) {
+func (f *FileBackend) Get(_ context.Context, path string) (io.ReadCloser, error) {
 	fullPath := f.resolve(path)
 	file, err := os.Open(fullPath)
 	if err != nil {
@@ -54,7 +54,7 @@ func (f *FileBackend) Get(ctx context.Context, path string) (io.ReadCloser, erro
 }
 
 // Put writes an object to local filesystem storage atomically using a temporary file.
-func (f *FileBackend) Put(ctx context.Context, path string, data io.Reader, size int64, contentType string) error {
+func (f *FileBackend) Put(_ context.Context, path string, data io.Reader, _ int64, _ string) error {
 	fullPath := f.resolve(path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return fmt.Errorf("file storage put mkdir: %w", err)
@@ -88,7 +88,7 @@ func (f *FileBackend) PutBytes(ctx context.Context, path string, data []byte, co
 }
 
 // Delete removes an object from storage.
-func (f *FileBackend) Delete(ctx context.Context, path string) error {
+func (f *FileBackend) Delete(_ context.Context, path string) error {
 	fullPath := f.resolve(path)
 	err := os.Remove(fullPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -98,7 +98,7 @@ func (f *FileBackend) Delete(ctx context.Context, path string) error {
 }
 
 // Exists checks if an object exists.
-func (f *FileBackend) Exists(ctx context.Context, path string) (bool, error) {
+func (f *FileBackend) Exists(_ context.Context, path string) (bool, error) {
 	fullPath := f.resolve(path)
 	_, err := os.Stat(fullPath)
 	if err == nil {
@@ -111,7 +111,7 @@ func (f *FileBackend) Exists(ctx context.Context, path string) (bool, error) {
 }
 
 // List returns relative object paths matching a prefix.
-func (f *FileBackend) List(ctx context.Context, prefix string) ([]string, error) {
+func (f *FileBackend) List(_ context.Context, prefix string) ([]string, error) {
 	searchDir := f.resolve(prefix)
 	var matches []string
 
@@ -140,7 +140,7 @@ func (f *FileBackend) List(ctx context.Context, prefix string) ([]string, error)
 }
 
 // PutIfNotExist stores data atomically if and only if the object does not already exist.
-func (f *FileBackend) PutIfNotExist(ctx context.Context, path string, data []byte) error {
+func (f *FileBackend) PutIfNotExist(_ context.Context, path string, data []byte) error {
 	fullPath := f.resolve(path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return fmt.Errorf("file storage mkdir: %w", err)

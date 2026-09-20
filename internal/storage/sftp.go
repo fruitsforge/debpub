@@ -106,7 +106,7 @@ func (s *SFTPBackend) resolve(filePath string) string {
 }
 
 // Get retrieves an object reader from remote SFTP storage.
-func (s *SFTPBackend) Get(ctx context.Context, filePath string) (io.ReadCloser, error) {
+func (s *SFTPBackend) Get(_ context.Context, filePath string) (io.ReadCloser, error) {
 	fullPath := s.resolve(filePath)
 	file, err := s.sftpClient.Open(fullPath)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *SFTPBackend) Get(ctx context.Context, filePath string) (io.ReadCloser, 
 }
 
 // Put writes an object to remote SFTP storage atomically using a temporary file and POSIX rename.
-func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, size int64, contentType string) error {
+func (s *SFTPBackend) Put(_ context.Context, filePath string, data io.Reader, _ int64, _ string) error {
 	fullPath := s.resolve(filePath)
 	dir := path.Dir(fullPath)
 	if err := s.mkdirAll(dir); err != nil {
@@ -163,7 +163,7 @@ func (s *SFTPBackend) PutBytes(ctx context.Context, filePath string, data []byte
 }
 
 // Delete removes an object from SFTP storage.
-func (s *SFTPBackend) Delete(ctx context.Context, filePath string) error {
+func (s *SFTPBackend) Delete(_ context.Context, filePath string) error {
 	fullPath := s.resolve(filePath)
 	err := s.sftpClient.Remove(fullPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -173,7 +173,7 @@ func (s *SFTPBackend) Delete(ctx context.Context, filePath string) error {
 }
 
 // Exists checks if an object exists on SFTP storage.
-func (s *SFTPBackend) Exists(ctx context.Context, filePath string) (bool, error) {
+func (s *SFTPBackend) Exists(_ context.Context, filePath string) (bool, error) {
 	fullPath := s.resolve(filePath)
 	_, err := s.sftpClient.Stat(fullPath)
 	if err == nil {
@@ -186,7 +186,7 @@ func (s *SFTPBackend) Exists(ctx context.Context, filePath string) (bool, error)
 }
 
 // List returns relative object paths matching a prefix on SFTP storage.
-func (s *SFTPBackend) List(ctx context.Context, prefix string) ([]string, error) {
+func (s *SFTPBackend) List(_ context.Context, prefix string) ([]string, error) {
 	fullPrefix := s.resolve(prefix)
 	walker := s.sftpClient.Walk(fullPrefix)
 	var paths []string
@@ -206,7 +206,7 @@ func (s *SFTPBackend) List(ctx context.Context, prefix string) ([]string, error)
 }
 
 // PutIfNotExist uses SFTP atomic exclusive create (os.O_CREATE | os.O_EXCL).
-func (s *SFTPBackend) PutIfNotExist(ctx context.Context, filePath string, data []byte) error {
+func (s *SFTPBackend) PutIfNotExist(_ context.Context, filePath string, data []byte) error {
 	fullPath := s.resolve(filePath)
 	dir := path.Dir(fullPath)
 	if err := s.mkdirAll(dir); err != nil {
