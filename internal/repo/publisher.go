@@ -51,7 +51,7 @@ func NewPublisher(cfg *config.Config, backend storage.StorageBackend, signer deb
 // PublishDebFiles publishes one or more .deb package files into the repository using the 4-phase staged protocol.
 func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) error {
 	if len(debFilePaths) == 0 {
-		return fmt.Errorf("no deb files provided to publish")
+		return errors.New("no deb files provided to publish")
 	}
 
 	// 1. Inspect all candidate packages locally before acquiring lock
@@ -151,14 +151,15 @@ func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) 
 
 	for arch, stanzas := range archGroups {
 		modifiedArchs[arch] = true
-		indexPath := path.Join("dists", p.cfg.Codename, p.cfg.Component, fmt.Sprintf("binary-%s", arch), "Packages")
+		binaryArch := "binary-" + arch
+		indexPath := path.Join("dists", p.cfg.Codename, p.cfg.Component, binaryArch, "Packages")
 
 		// Fetch existing index if available
 		index := debian.NewIndex()
 		rc, err := p.storage.Get(ctx, indexPath)
 		if err == nil {
 			existingData, errRead := io.ReadAll(rc)
-			rc.Close()
+			_ = rc.Close()
 			if errRead == nil {
 				if parsedIdx, errParse := debian.ParseIndex(existingData); errParse == nil {
 					index = parsedIdx
@@ -180,8 +181,8 @@ func (p *Publisher) PublishDebFiles(ctx context.Context, debFilePaths []string) 
 		}
 
 		// Upload all compression variants (Packages, Packages.gz, Packages.bz2, Packages.xz)
-		baseDir := path.Join("dists", p.cfg.Codename, p.cfg.Component, fmt.Sprintf("binary-%s", arch))
-		relPathBase := path.Join(p.cfg.Component, fmt.Sprintf("binary-%s", arch), "Packages")
+		baseDir := path.Join("dists", p.cfg.Codename, p.cfg.Component, binaryArch)
+		relPathBase := path.Join(p.cfg.Component, binaryArch, "Packages")
 
 		for _, out := range compressedRes.AllOutputs() {
 			variantStoragePath := baseDir + "/Packages" + out.Ext

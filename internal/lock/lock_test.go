@@ -124,10 +124,8 @@ func TestLockerConcurrency(t *testing.T) {
 	successCount := 0
 	var mu sync.Mutex
 
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
+	for range workers {
+		wg.Go(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -147,7 +145,7 @@ func TestLockerConcurrency(t *testing.T) {
 				successCount++
 				mu.Unlock()
 			}
-		}(i)
+		})
 	}
 
 	wg.Wait()

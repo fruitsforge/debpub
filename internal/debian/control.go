@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -53,7 +54,7 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 
 	for {
 		header, err := arReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -62,66 +63,17 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 
 		name := strings.TrimRight(header.Name, "/")
 		if strings.HasPrefix(name, "control.tar") {
-			var tarReader *tar.Reader
-			var closer io.Closer
-
-			if strings.HasSuffix(name, ".gz") {
-				gz, err := gzip.NewReader(arReader)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
-				}
-				closer = gz
-				tarReader = tar.NewReader(gz)
-			} else if strings.HasSuffix(name, ".xz") {
-				xzR, err := xz.NewReader(arReader)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
-				}
-				tarReader = tar.NewReader(xzR)
-			} else if strings.HasSuffix(name, ".zst") {
-				zstdR, err := zstd.NewReader(arReader)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
-				}
-				closer = zstdR.IOReadCloser()
-				tarReader = tar.NewReader(zstdR)
-			} else {
-				tarReader = tar.NewReader(arReader)
-			}
-
-			// Scan tar entries for "./control" or "control"
-			for {
-				tarHeader, err := tarReader.Next()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					if closer != nil {
-						_ = closer.Close()
-					}
-					return nil, fmt.Errorf("error reading %s: %w", name, err)
-				}
-				tarName := strings.TrimPrefix(tarHeader.Name, "./")
-				if tarName == "control" {
-					controlData, err = io.ReadAll(tarReader)
-					if err != nil {
-						if closer != nil {
-							_ = closer.Close()
-						}
-						return nil, fmt.Errorf("failed reading control file from tar: %w", err)
-					}
-					break
-				}
-			}
-			if closer != nil {
-				_ = closer.Close()
+			var errExtract error
+			controlData, errExtract = extractControlTar(arReader, name)
+			if errExtract != nil {
+				return nil, errExtract
 			}
 			break
 		}
 	}
 
 	if len(controlData) == 0 {
-		return nil, fmt.Errorf("control file not found inside .deb archive")
+		return nil, errors.New("control file not found inside .deb archive")
 	}
 
 	// Drain remainder of the archive to ensure hashes and byte count cover the entire .deb
@@ -139,9 +91,61 @@ func ParseDebReader(r io.Reader) (*DebPackage, error) {
 	return &DebPackage{
 		Control: stanza.PackageControl,
 		Size:    counter.total,
-		MD5:     fmt.Sprintf("%x", md5H.Sum(nil)),
-		SHA1:    fmt.Sprintf("%x", sha1H.Sum(nil)),
-		SHA256:  fmt.Sprintf("%x", sha256H.Sum(nil)),
+		MD5:     hex.EncodeToString(md5H.Sum(nil)),
+		SHA1:    hex.EncodeToString(sha1H.Sum(nil)),
+		SHA256:  hex.EncodeToString(sha256H.Sum(nil)),
 		SHA512:  hex.EncodeToString(sha512H.Sum(nil)),
 	}, nil
+}
+
+func extractControlTar(r io.Reader, name string) ([]byte, error) {
+	var tarReader *tar.Reader
+	var closer io.Closer
+
+	switch {
+	case strings.HasSuffix(name, ".gz"):
+		gz, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
+		}
+		closer = gz
+		tarReader = tar.NewReader(gz)
+	case strings.HasSuffix(name, ".xz"):
+		xzR, err := xz.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
+		}
+		tarReader = tar.NewReader(xzR)
+	case strings.HasSuffix(name, ".zst"):
+		zstdR, err := zstd.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress %s: %w", name, err)
+		}
+		closer = zstdR.IOReadCloser()
+		tarReader = tar.NewReader(zstdR)
+	default:
+		tarReader = tar.NewReader(r)
+	}
+
+	if closer != nil {
+		defer func() { _ = closer.Close() }()
+	}
+
+	for {
+		tarHeader, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error reading %s: %w", name, err)
+		}
+		if strings.TrimPrefix(tarHeader.Name, "./") == "control" {
+			data, errRead := io.ReadAll(tarReader)
+			if errRead != nil {
+				return nil, fmt.Errorf("failed reading control file from tar: %w", errRead)
+			}
+			return data, nil
+		}
+	}
+	return nil, nil
 }

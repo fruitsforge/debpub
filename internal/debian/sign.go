@@ -64,7 +64,7 @@ func (s *GPGSigner) runGPG(ctx context.Context, args []string, input []byte) ([]
 		if err != nil {
 			return nil, fmt.Errorf("gpg passphrase pipe creation failed: %w", err)
 		}
-		defer passReader.Close()
+		defer func() { _ = passReader.Close() }()
 
 		cmdArgs = append(cmdArgs, "--pinentry-mode", "loopback", "--passphrase-fd", "3")
 	}
@@ -80,7 +80,7 @@ func (s *GPGSigner) runGPG(ctx context.Context, args []string, input []byte) ([]
 
 	if passWriter != nil {
 		go func() {
-			defer passWriter.Close()
+			defer func() { _ = passWriter.Close() }()
 			_, _ = passWriter.WriteString(s.Passphrase + "\n")
 		}()
 	}

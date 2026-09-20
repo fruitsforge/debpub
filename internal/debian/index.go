@@ -2,8 +2,9 @@ package debian
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 )
 
 // Index represents an in-memory Debian Packages index file.
@@ -94,15 +95,15 @@ func (idx *Index) Remove(pkgName, version string) bool {
 
 // Sort sorts the packages in the index alphabetically by Package name, then descending by Debian Version (latest first), then ascending by Architecture.
 func (idx *Index) Sort() {
-	sort.Slice(idx.Packages, func(i, j int) bool {
-		if idx.Packages[i].Package != idx.Packages[j].Package {
-			return idx.Packages[i].Package < idx.Packages[j].Package
+	slices.SortFunc(idx.Packages, func(a, b *PackageStanza) int {
+		if c := cmp.Compare(a.Package, b.Package); c != 0 {
+			return c
 		}
-		cmp := CompareVersions(idx.Packages[i].Version, idx.Packages[j].Version)
-		if cmp != 0 {
-			return cmp > 0
+		// Descending by Debian Version (latest first): Compare b to a
+		if c := CompareVersions(b.Version, a.Version); c != 0 {
+			return c
 		}
-		return idx.Packages[i].Architecture < idx.Packages[j].Architecture
+		return cmp.Compare(a.Architecture, b.Architecture)
 	})
 }
 

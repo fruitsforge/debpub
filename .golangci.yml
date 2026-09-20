@@ -1,0 +1,27 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - errcheck
+    - ineffassign
+    - modernize
+    - gocritic
+    - perfsprint
+    - intrange
+    - misspell
+    - errorlint
+    - bodyclose
+    - sqlclosecheck
+    - nilerr
+    - nilnil
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

@@ -1,3 +1,4 @@
+// Package compress generates multi-format Debian index compressions (gzip, bzip2, xz) and computes hashes on the fly.
 package compress
 
 import (
@@ -42,57 +43,90 @@ func (r *CompressResult) AllOutputs() []Output {
 // CompressAll streams raw bytes into plain, gzip, bzip2, and xz variants,
 // computing all hashes (MD5, SHA1, SHA256, SHA512) and sizes on the fly.
 func CompressAll(raw []byte) (*CompressResult, error) {
-	// 1. Plain
-	plainOut := hashAndWrap("", raw)
-
-	// 2. Gzip (BestCompression)
-	var gzBuf bytes.Buffer
-	gzWriter, err := gzip.NewWriterLevel(&gzBuf, gzip.BestCompression)
+	gzOut, err := compressGzip(raw)
 	if err != nil {
-		return nil, fmt.Errorf("compress: failed to init gzip writer: %w", err)
+		return nil, err
 	}
-	if _, err := gzWriter.Write(raw); err != nil {
-		return nil, fmt.Errorf("compress: failed writing gzip: %w", err)
-	}
-	if err := gzWriter.Close(); err != nil {
-		return nil, fmt.Errorf("compress: failed closing gzip writer: %w", err)
-	}
-	gzOut := hashAndWrap(".gz", gzBuf.Bytes())
 
-	// 3. Bzip2 (BestCompression)
-	var bz2Buf bytes.Buffer
-	bz2Writer, err := bzip2.NewWriter(&bz2Buf, &bzip2.WriterConfig{Level: bzip2.BestCompression})
+	bz2Out, err := compressBzip2(raw)
 	if err != nil {
-		return nil, fmt.Errorf("compress: failed to init bzip2 writer: %w", err)
+		return nil, err
 	}
-	if _, err := bz2Writer.Write(raw); err != nil {
-		return nil, fmt.Errorf("compress: failed writing bzip2: %w", err)
-	}
-	if err := bz2Writer.Close(); err != nil {
-		return nil, fmt.Errorf("compress: failed closing bzip2 writer: %w", err)
-	}
-	bz2Out := hashAndWrap(".bz2", bz2Buf.Bytes())
 
-	// 4. XZ (Level 6 standard)
-	var xzBuf bytes.Buffer
-	xzWriter, err := xz.NewWriter(&xzBuf)
+	xzOut, err := compressXZ(raw)
 	if err != nil {
-		return nil, fmt.Errorf("compress: failed to init xz writer: %w", err)
+		return nil, err
 	}
-	if _, err := xzWriter.Write(raw); err != nil {
-		return nil, fmt.Errorf("compress: failed writing xz: %w", err)
-	}
-	if err := xzWriter.Close(); err != nil {
-		return nil, fmt.Errorf("compress: failed closing xz writer: %w", err)
-	}
-	xzOut := hashAndWrap(".xz", xzBuf.Bytes())
 
 	return &CompressResult{
-		Plain: plainOut,
+		Plain: hashAndWrap("", raw),
 		Gz:    gzOut,
 		Bz2:   bz2Out,
 		Xz:    xzOut,
 	}, nil
+}
+
+func compressGzip(raw []byte) (out Output, err error) {
+	var buf bytes.Buffer
+	w, initErr := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if initErr != nil {
+		return Output{}, fmt.Errorf("compress: failed to init gzip writer: %w", initErr)
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("compress: failed closing gzip writer: %w", cerr)
+		}
+		if err == nil {
+			out = hashAndWrap(".gz", buf.Bytes())
+		}
+	}()
+
+	if _, err = w.Write(raw); err != nil {
+		return Output{}, fmt.Errorf("compress: failed writing gzip: %w", err)
+	}
+	return out, nil
+}
+
+func compressBzip2(raw []byte) (out Output, err error) {
+	var buf bytes.Buffer
+	w, initErr := bzip2.NewWriter(&buf, &bzip2.WriterConfig{Level: bzip2.BestCompression})
+	if initErr != nil {
+		return Output{}, fmt.Errorf("compress: failed to init bzip2 writer: %w", initErr)
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("compress: failed closing bzip2 writer: %w", cerr)
+		}
+		if err == nil {
+			out = hashAndWrap(".bz2", buf.Bytes())
+		}
+	}()
+
+	if _, err = w.Write(raw); err != nil {
+		return Output{}, fmt.Errorf("compress: failed writing bzip2: %w", err)
+	}
+	return out, nil
+}
+
+func compressXZ(raw []byte) (out Output, err error) {
+	var buf bytes.Buffer
+	w, initErr := xz.NewWriter(&buf)
+	if initErr != nil {
+		return Output{}, fmt.Errorf("compress: failed to init xz writer: %w", initErr)
+	}
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("compress: failed closing xz writer: %w", cerr)
+		}
+		if err == nil {
+			out = hashAndWrap(".xz", buf.Bytes())
+		}
+	}()
+
+	if _, err = w.Write(raw); err != nil {
+		return Output{}, fmt.Errorf("compress: failed writing xz: %w", err)
+	}
+	return out, nil
 }
 
 func hashAndWrap(ext string, data []byte) Output {

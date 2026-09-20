@@ -22,6 +22,9 @@ LDFLAGS=-s -w \
 
 all: test build
 
+lint:
+	golangci-lint run ./cmd/... ./internal/...
+
 build:
 	@mkdir -p $(BIN_DIR)
 	go build -ldflags="$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) .

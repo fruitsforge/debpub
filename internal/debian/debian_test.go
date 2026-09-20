@@ -91,6 +91,9 @@ func TestDebianVersionCompare(t *testing.T) {
 		{"1.0a", "1.0", 1},        // "a" > empty
 		{"1.0", "1.0.0", -1},      // empty < ".0"
 		{"2:1.0", "1:2.0", 1},
+		{"0:1.0", "1.0", 0},           // explicit epoch 0 equals omitted epoch
+		{"1.0-1-1", "1.0-1", 1},       // revision with embedded hyphen
+		{"1.2.3+git2026", "1.2.3", 1}, // git snapshot suffix
 	}
 
 	for _, tt := range tests {
@@ -105,36 +108,30 @@ func TestIndexAddOrUpdateAndSort(t *testing.T) {
 	idx := NewIndex()
 
 	s1 := &PackageStanza{
-		PackageControl: PackageControl{
-			Package:      "app-b",
-			Version:      "1.0.0",
-			Architecture: "amd64",
-			Description:  "App B",
-		},
-		Filename: "pool/main/a/app-b/app-b_1.0.0_amd64.deb",
-		Size:     100,
+		Package:      "app-b",
+		Version:      "1.0.0",
+		Architecture: "amd64",
+		Description:  "App B",
+		Filename:     "pool/main/a/app-b/app-b_1.0.0_amd64.deb",
+		Size:         100,
 	}
 
 	s2 := &PackageStanza{
-		PackageControl: PackageControl{
-			Package:      "app-a",
-			Version:      "1.0.0",
-			Architecture: "amd64",
-			Description:  "App A",
-		},
-		Filename: "pool/main/a/app-a/app-a_1.0.0_amd64.deb",
-		Size:     100,
+		Package:      "app-a",
+		Version:      "1.0.0",
+		Architecture: "amd64",
+		Description:  "App A",
+		Filename:     "pool/main/a/app-a/app-a_1.0.0_amd64.deb",
+		Size:         100,
 	}
 
 	s3 := &PackageStanza{
-		PackageControl: PackageControl{
-			Package:      "app-a",
-			Version:      "2.0.0",
-			Architecture: "amd64",
-			Description:  "App A v2",
-		},
-		Filename: "pool/main/a/app-a/app-a_2.0.0_amd64.deb",
-		Size:     100,
+		Package:      "app-a",
+		Version:      "2.0.0",
+		Architecture: "amd64",
+		Description:  "App A v2",
+		Filename:     "pool/main/a/app-a/app-a_2.0.0_amd64.deb",
+		Size:         100,
 	}
 
 	// 1. Add without preserveVersions (replaces same package)

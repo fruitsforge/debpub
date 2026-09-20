@@ -40,6 +40,7 @@ func (f *FileBackend) resolve(path string) string {
 	return filepath.Join(f.BaseDir, clean)
 }
 
+// Get retrieves an object reader from local filesystem storage.
 func (f *FileBackend) Get(ctx context.Context, path string) (io.ReadCloser, error) {
 	fullPath := f.resolve(path)
 	file, err := os.Open(fullPath)
@@ -52,6 +53,7 @@ func (f *FileBackend) Get(ctx context.Context, path string) (io.ReadCloser, erro
 	return file, nil
 }
 
+// Put writes an object to local filesystem storage atomically using a temporary file.
 func (f *FileBackend) Put(ctx context.Context, path string, data io.Reader, size int64, contentType string) error {
 	fullPath := f.resolve(path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
@@ -64,10 +66,10 @@ func (f *FileBackend) Put(ctx context.Context, path string, data io.Reader, size
 		return fmt.Errorf("file storage create temp: %w", err)
 	}
 	tmpName := tmpFile.Name()
-	defer os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
 
 	if _, err := io.Copy(tmpFile, data); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("file storage copy: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {
@@ -80,10 +82,12 @@ func (f *FileBackend) Put(ctx context.Context, path string, data io.Reader, size
 	return nil
 }
 
+// PutBytes is a convenience helper storing a raw byte slice.
 func (f *FileBackend) PutBytes(ctx context.Context, path string, data []byte, contentType string) error {
 	return f.Put(ctx, path, bytes.NewReader(data), int64(len(data)), contentType)
 }
 
+// Delete removes an object from storage.
 func (f *FileBackend) Delete(ctx context.Context, path string) error {
 	fullPath := f.resolve(path)
 	err := os.Remove(fullPath)
@@ -93,6 +97,7 @@ func (f *FileBackend) Delete(ctx context.Context, path string) error {
 	return nil
 }
 
+// Exists checks if an object exists.
 func (f *FileBackend) Exists(ctx context.Context, path string) (bool, error) {
 	fullPath := f.resolve(path)
 	_, err := os.Stat(fullPath)
@@ -105,6 +110,7 @@ func (f *FileBackend) Exists(ctx context.Context, path string) (bool, error) {
 	return false, err
 }
 
+// List returns relative object paths matching a prefix.
 func (f *FileBackend) List(ctx context.Context, prefix string) ([]string, error) {
 	searchDir := f.resolve(prefix)
 	var matches []string
@@ -133,6 +139,7 @@ func (f *FileBackend) List(ctx context.Context, prefix string) ([]string, error)
 	return matches, nil
 }
 
+// PutIfNotExist stores data atomically if and only if the object does not already exist.
 func (f *FileBackend) PutIfNotExist(ctx context.Context, path string, data []byte) error {
 	fullPath := f.resolve(path)
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
@@ -147,7 +154,7 @@ func (f *FileBackend) PutIfNotExist(ctx context.Context, path string, data []byt
 		}
 		return fmt.Errorf("file storage open exclusive: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write(data); err != nil {
 		return fmt.Errorf("file storage write: %w", err)

@@ -1,3 +1,4 @@
+// Package storage defines abstract storage backends (S3, SFTP, local filesystem) and atomic lock primitives.
 package storage
 
 import (

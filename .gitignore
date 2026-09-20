@@ -25,3 +25,7 @@ doc/ai/
 # OS files
 .DS_Store
 
+/agent/skills/
+/.junie/
+/.claude/
+/.agents/

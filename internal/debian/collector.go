@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -113,7 +113,7 @@ func CollectDebFiles(patternsOrPaths []string) ([]string, error) {
 		return nil, errors.New("no Debian packages (.deb, .udeb, .ddeb) found to publish")
 	}
 
-	sort.Strings(resolved)
+	slices.Sort(resolved)
 	return resolved, nil
 }
 

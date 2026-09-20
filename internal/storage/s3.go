@@ -49,6 +49,7 @@ func (s *S3Backend) key(path string) string {
 	return s.prefix + "/" + clean
 }
 
+// Get retrieves an object reader from AWS S3 storage.
 func (s *S3Backend) Get(ctx context.Context, path string) (io.ReadCloser, error) {
 	key := s.key(path)
 	output, err := s.client.GetObject(ctx, &s3.GetObjectInput{
@@ -56,8 +57,7 @@ func (s *S3Backend) Get(ctx context.Context, path string) (io.ReadCloser, error)
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		var notFound *s3types.NoSuchKey
-		if errors.As(err, &notFound) {
+		if _, ok := errors.AsType[*s3types.NoSuchKey](err); ok {
 			return nil, ErrNotFound
 		}
 		var apiErr smithy.APIError
@@ -69,6 +69,7 @@ func (s *S3Backend) Get(ctx context.Context, path string) (io.ReadCloser, error)
 	return output.Body, nil
 }
 
+// Put writes an object to AWS S3 storage.
 func (s *S3Backend) Put(ctx context.Context, path string, data io.Reader, size int64, contentType string) error {
 	key := s.key(path)
 	input := &s3.PutObjectInput{
@@ -90,10 +91,12 @@ func (s *S3Backend) Put(ctx context.Context, path string, data io.Reader, size i
 	return nil
 }
 
+// PutBytes is a convenience helper storing a raw byte slice in AWS S3.
 func (s *S3Backend) PutBytes(ctx context.Context, path string, data []byte, contentType string) error {
 	return s.Put(ctx, path, bytes.NewReader(data), int64(len(data)), contentType)
 }
 
+// Delete removes an object from AWS S3 storage.
 func (s *S3Backend) Delete(ctx context.Context, path string) error {
 	key := s.key(path)
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
@@ -106,6 +109,7 @@ func (s *S3Backend) Delete(ctx context.Context, path string) error {
 	return nil
 }
 
+// Exists checks if an object exists in AWS S3 storage.
 func (s *S3Backend) Exists(ctx context.Context, path string) (bool, error) {
 	key := s.key(path)
 	_, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
@@ -128,6 +132,7 @@ func (s *S3Backend) Exists(ctx context.Context, path string) (bool, error) {
 	return false, fmt.Errorf("s3 exists head: %w", err)
 }
 
+// List returns relative object paths matching a prefix in AWS S3 storage.
 func (s *S3Backend) List(ctx context.Context, prefix string) ([]string, error) {
 	fullPrefix := s.key(prefix)
 	var keys []string

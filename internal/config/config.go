@@ -1,8 +1,10 @@
+// Package config manages configuration loading, validation, and defaults for debpub.
 package config
 
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"time"
 )
@@ -62,6 +64,7 @@ type ConfigFileSchema struct {
 	Metadata         map[string]string `json:"metadata"`
 }
 
+// GPGConfig holds GPG signing settings in configuration files.
 type GPGConfig struct {
 	Sign       *bool    `json:"sign"`
 	Key        string   `json:"key"`
@@ -69,12 +72,14 @@ type GPGConfig struct {
 	ExtraArgs  []string `json:"extra_args"`
 }
 
+// LockConfig holds repository locking settings in configuration files.
 type LockConfig struct {
 	Enabled *bool  `json:"enabled"`
 	Timeout string `json:"timeout"`
 	TTL     string `json:"ttl"`
 }
 
+// S3Config holds AWS S3 storage parameters in configuration files.
 type S3Config struct {
 	Endpoint       string `json:"endpoint"`
 	ForcePathStyle *bool  `json:"force_path_style"`
@@ -83,6 +88,7 @@ type S3Config struct {
 	Region         string `json:"region"`
 }
 
+// SFTPConfig holds remote SFTP storage parameters in configuration files.
 type SFTPConfig struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
@@ -221,9 +227,7 @@ func LoadConfigFile(path string, target *Config) error {
 		}
 	}
 
-	for k, v := range schema.Metadata {
-		target.ExtraMetadata[k] = v
-	}
+	maps.Copy(target.ExtraMetadata, schema.Metadata)
 
 	return nil
 }

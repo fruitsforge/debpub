@@ -167,7 +167,7 @@ func (l *Locker) checkStale(ctx context.Context) (bool, LockInfo) {
 	if err != nil {
 		return false, LockInfo{}
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	data, err := io.ReadAll(rc)
 	if err != nil {
@@ -188,10 +188,7 @@ func (l *Locker) checkStale(ctx context.Context) (bool, LockInfo) {
 }
 
 func (l *Locker) startHeartbeat(ctx context.Context, heartbeatCh <-chan struct{}) {
-	interval := l.ttl / 2
-	if interval < 10*time.Second {
-		interval = 10 * time.Second
-	}
+	interval := max(l.ttl/2, 10*time.Second)
 
 	go func() {
 		ticker := time.NewTicker(interval)
@@ -235,7 +232,7 @@ func (l *Locker) Release(ctx context.Context) error {
 	// Verify we still hold the lock before deleting it, preventing clobbering another worker's lock
 	rc, err := l.backend.Get(ctx, l.lockPath)
 	if err == nil {
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		if data, errRead := io.ReadAll(rc); errRead == nil {
 			var currentInfo LockInfo
 			if errUnmarshal := json.Unmarshal(data, &currentInfo); errUnmarshal == nil {

@@ -1,9 +1,6 @@
 package repo
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"io"
 	"os"
@@ -11,70 +8,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blakesmith/ar"
-
 	"debpub/internal/config"
 	"debpub/internal/storage"
+	"debpub/internal/testutil"
 )
 
 // Helper to construct a valid minimal in-memory .deb file
 func createTestDeb(t *testing.T, pkgName, version, arch string) []byte {
 	t.Helper()
-
-	// 1. Create control file
-	controlContent := []byte(strings.Join([]string{
-		"Package: " + pkgName,
-		"Version: " + version,
-		"Architecture: " + arch,
-		"Maintainer: Debpub Test <test@example.com>",
-		"Description: Sample test package for debpub",
-		"",
-	}, "\n"))
-
-	// 2. Wrap control in control.tar.gz
-	var controlTarGz bytes.Buffer
-	gzWriter := gzip.NewWriter(&controlTarGz)
-	tarWriter := tar.NewWriter(gzWriter)
-
-	tarHeader := &tar.Header{
-		Name: "./control",
-		Mode: 0644,
-		Size: int64(len(controlContent)),
-	}
-	if err := tarWriter.WriteHeader(tarHeader); err != nil {
-		t.Fatalf("failed writing tar header: %v", err)
-	}
-	if _, err := tarWriter.Write(controlContent); err != nil {
-		t.Fatalf("failed writing control content to tar: %v", err)
-	}
-	tarWriter.Close()
-	gzWriter.Close()
-
-	// 3. Assemble ar archive with debian-binary and control.tar.gz
-	var debBuf bytes.Buffer
-	arWriter := ar.NewWriter(&debBuf)
-	if err := arWriter.WriteGlobalHeader(); err != nil {
-		t.Fatalf("WriteGlobalHeader failed: %v", err)
-	}
-
-	// debian-binary entry
-	debBin := []byte("2.0\n")
-	arWriter.WriteHeader(&ar.Header{
-		Name: "debian-binary",
-		Mode: 0644,
-		Size: int64(len(debBin)),
+	return testutil.CreateTestDeb(t, testutil.DebOptions{
+		Package:      pkgName,
+		Version:      version,
+		Architecture: arch,
+		Description:  "Sample test package for debpub",
 	})
-	arWriter.Write(debBin)
-
-	// control.tar.gz entry
-	arWriter.WriteHeader(&ar.Header{
-		Name: "control.tar.gz",
-		Mode: 0644,
-		Size: int64(controlTarGz.Len()),
-	})
-	arWriter.Write(controlTarGz.Bytes())
-
-	return debBuf.Bytes()
 }
 
 func TestPublisherEndToEnd(t *testing.T) {
@@ -155,7 +102,9 @@ func TestPublisherEndToEnd(t *testing.T) {
 		t.Fatalf("failed reading Packages index: %v", err)
 	}
 	idxContent, _ := io.ReadAll(rc)
-	rc.Close()
+	if err := rc.Close(); err != nil {
+		t.Fatalf("failed to close Packages reader: %v", err)
+	}
 
 	strContent := string(idxContent)
 	if !strings.Contains(strContent, "Version: 1.0.0") || !strings.Contains(strContent, "Version: 1.1.0") {
@@ -213,7 +162,9 @@ func TestPublisherBatchWithVersionSorting(t *testing.T) {
 		t.Fatalf("failed reading Packages index: %v", err)
 	}
 	idxContent, _ := io.ReadAll(rc)
-	rc.Close()
+	if err := rc.Close(); err != nil {
+		t.Fatalf("failed to close Packages reader: %v", err)
+	}
 
 	strContent := string(idxContent)
 	if !strings.Contains(strContent, "Version: 1.10.0") {

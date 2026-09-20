@@ -112,7 +112,7 @@ func compareParts(s1, s2 string) int {
 		// Numerical comparison when equal length
 		start1 := i1 - digits1
 		start2 := i2 - digits2
-		for k := 0; k < digits1; k++ {
+		for k := range digits1 {
 			if s1[start1+k] != s2[start2+k] {
 				if firstDiff == 0 {
 					firstDiff = compareInt(int(s1[start1+k]), int(s2[start2+k]))

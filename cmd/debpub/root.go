@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"time"
 
@@ -145,9 +146,7 @@ func loadConfigWithPrecedence(cmd *cobra.Command) error {
 	applyStringIfNotChanged(cmd, "gpg-key", &cfg.GPGKey, fileCfg.GPGKey)
 	applyStringIfNotChanged(cmd, "gpg-passphrase", &cfg.GPGPassphrase, fileCfg.GPGPassphrase)
 
-	for k, v := range fileCfg.ExtraMetadata {
-		cfg.ExtraMetadata[k] = v
-	}
+	maps.Copy(cfg.ExtraMetadata, fileCfg.ExtraMetadata)
 
 	return nil
 }

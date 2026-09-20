@@ -1,16 +1,12 @@
 package cmd
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/blakesmith/ar"
+	"debpub/internal/testutil"
 )
 
 func TestBuildStorageBackendS3Options(t *testing.T) {
@@ -87,8 +83,8 @@ func TestPublishCmdWithGlobSelection(t *testing.T) {
 	fBeta := filepath.Join(incomingDir, "pkg-beta_1.0.0_amd64.deb")
 
 	// Use helper from collector_test or write valid minimal ar deb
-	debAlpha := createDummyDebContent("pkg-alpha", "1.0.0", "amd64")
-	debBeta := createDummyDebContent("pkg-beta", "1.0.0", "amd64")
+	debAlpha := createDummyDebContent(t, "pkg-alpha", "1.0.0", "amd64")
+	debBeta := createDummyDebContent(t, "pkg-beta", "1.0.0", "amd64")
 
 	if err := os.WriteFile(fAlpha, debAlpha, 0644); err != nil {
 		t.Fatalf("failed writing alpha deb: %v", err)
@@ -122,48 +118,12 @@ func TestPublishCmdWithGlobSelection(t *testing.T) {
 }
 
 // Helper to create minimal valid debian package for publish test
-func createDummyDebContent(pkgName, version, arch string) []byte {
-	var controlTarGz bytes.Buffer
-	gzWriter := gzip.NewWriter(&controlTarGz)
-	tarWriter := tar.NewWriter(gzWriter)
-
-	controlContent := []byte(strings.Join([]string{
-		"Package: " + pkgName,
-		"Version: " + version,
-		"Architecture: " + arch,
-		"Maintainer: Test <test@example.com>",
-		"Description: Test package",
-		"",
-	}, "\n"))
-
-	tarHeader := &tar.Header{
-		Name: "./control",
-		Mode: 0644,
-		Size: int64(len(controlContent)),
-	}
-	_ = tarWriter.WriteHeader(tarHeader)
-	_, _ = tarWriter.Write(controlContent)
-	_ = tarWriter.Close()
-	_ = gzWriter.Close()
-
-	var debBuf bytes.Buffer
-	arWriter := ar.NewWriter(&debBuf)
-	_ = arWriter.WriteGlobalHeader()
-
-	debBin := []byte("2.0\n")
-	_ = arWriter.WriteHeader(&ar.Header{
-		Name: "debian-binary",
-		Mode: 0644,
-		Size: int64(len(debBin)),
+func createDummyDebContent(t *testing.T, pkgName, version, arch string) []byte {
+	t.Helper()
+	return testutil.CreateTestDeb(t, testutil.DebOptions{
+		Package:      pkgName,
+		Version:      version,
+		Architecture: arch,
+		Description:  "Test package",
 	})
-	_, _ = arWriter.Write(debBin)
-
-	_ = arWriter.WriteHeader(&ar.Header{
-		Name: "control.tar.gz",
-		Mode: 0644,
-		Size: int64(controlTarGz.Len()),
-	})
-	_, _ = arWriter.Write(controlTarGz.Bytes())
-
-	return debBuf.Bytes()
 }

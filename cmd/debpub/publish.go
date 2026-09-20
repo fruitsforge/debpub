@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -36,7 +37,7 @@ Positional arguments can be:
 		}
 
 		if cfg.Codename == "" {
-			return fmt.Errorf("missing required --codename (-c) or codename in config file")
+			return errors.New("missing required --codename (-c) or codename in config file")
 		}
 
 		debFiles, err := debian.CollectDebFiles(args)
@@ -78,7 +79,7 @@ func buildStorageBackend(ctx context.Context) (storage.StorageBackend, error) {
 
 	case "s3":
 		if cfg.Bucket == "" {
-			return nil, fmt.Errorf("missing required --bucket (-b) for s3 storage")
+			return nil, errors.New("missing required --bucket (-b) for s3 storage")
 		}
 
 		var optFns []func(*awsconfig.LoadOptions) error
@@ -111,7 +112,7 @@ func buildStorageBackend(ctx context.Context) (storage.StorageBackend, error) {
 
 	case "sftp":
 		if cfg.SFTPHost == "" {
-			return nil, fmt.Errorf("missing required --sftp-host for sftp storage")
+			return nil, errors.New("missing required --sftp-host for sftp storage")
 		}
 		return storage.NewSFTPBackend(storage.SFTPOptions{
 			Host:     cfg.SFTPHost,

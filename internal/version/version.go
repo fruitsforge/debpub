@@ -1,3 +1,4 @@
+// Package version manages version information, build metadata, and banners for debpub.
 package version
 
 import (

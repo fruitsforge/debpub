@@ -35,8 +35,11 @@ func TestFileBackendCRUDAndLock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get failed: %v", err)
 	}
-	content, err := io.ReadAll(r)
-	r.Close()
+	defer func() { _ = r.Close() }()
+	content, errRead := io.ReadAll(r)
+	if errRead != nil {
+		t.Fatalf("ReadAll failed: %v", errRead)
+	}
 	if !bytes.Equal(content, testData) {
 		t.Fatalf("content mismatch: got %q, want %q", string(content), string(testData))
 	}

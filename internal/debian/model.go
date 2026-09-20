@@ -2,6 +2,7 @@ package debian
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -100,7 +101,7 @@ func (s *PackageStanza) ToParagraph() *Paragraph {
 	p.Set("Architecture", s.Architecture)
 	p.Set("Maintainer", s.Maintainer)
 	if s.InstalledSize > 0 {
-		p.Set("Installed-Size", fmt.Sprintf("%d", s.InstalledSize))
+		p.Set("Installed-Size", strconv.FormatInt(s.InstalledSize, 10))
 	}
 	if s.Section != "" {
 		p.Set("Section", s.Section)
@@ -143,7 +144,7 @@ func (s *PackageStanza) ToParagraph() *Paragraph {
 	}
 	p.Set("Description", s.Description)
 	p.Set("Filename", s.Filename)
-	p.Set("Size", fmt.Sprintf("%d", s.Size))
+	p.Set("Size", strconv.FormatInt(s.Size, 10))
 	p.Set("SHA256", s.SHA256)
 	if s.SHA512 != "" {
 		p.Set("SHA512", s.SHA512)
@@ -164,15 +165,16 @@ func (p *Paragraph) String() string {
 		val := p.Fields[key]
 		lines := strings.Split(val, "\n")
 		if len(lines) == 1 {
-			sb.WriteString(fmt.Sprintf("%s: %s\n", key, val))
+			fmt.Fprintf(&sb, "%s: %s\n", key, val)
 		} else {
-			sb.WriteString(fmt.Sprintf("%s:\n", key))
+			fmt.Fprintf(&sb, "%s:\n", key)
 			for _, line := range lines {
-				if line == "" {
+				switch {
+				case line == "":
 					sb.WriteString(" .\n")
-				} else if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
+				case strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t"):
 					sb.WriteString(line + "\n")
-				} else {
+				default:
 					sb.WriteString(" " + line + "\n")
 				}
 			}

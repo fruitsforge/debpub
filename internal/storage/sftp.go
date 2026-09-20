@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/sftp"
@@ -62,7 +63,7 @@ func NewSFTPBackend(opts SFTPOptions) (*SFTPBackend, error) {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Standard for headless CI/CD runner pools
 	}
 
-	addr := net.JoinHostPort(opts.Host, fmt.Sprintf("%d", opts.Port))
+	addr := net.JoinHostPort(opts.Host, strconv.Itoa(opts.Port))
 	sshClient, err := ssh.Dial("tcp", addr, sshConfig)
 	if err != nil {
 		return nil, fmt.Errorf("sftp: ssh dial error: %w", err)
@@ -70,7 +71,7 @@ func NewSFTPBackend(opts SFTPOptions) (*SFTPBackend, error) {
 
 	sftpClient, err := sftp.NewClient(sshClient)
 	if err != nil {
-		sshClient.Close()
+		_ = sshClient.Close()
 		return nil, fmt.Errorf("sftp: client init error: %w", err)
 	}
 
@@ -104,6 +105,7 @@ func (s *SFTPBackend) resolve(filePath string) string {
 	return path.Join(s.opts.BasePath, clean)
 }
 
+// Get retrieves an object reader from remote SFTP storage.
 func (s *SFTPBackend) Get(ctx context.Context, filePath string) (io.ReadCloser, error) {
 	fullPath := s.resolve(filePath)
 	file, err := s.sftpClient.Open(fullPath)
@@ -116,6 +118,7 @@ func (s *SFTPBackend) Get(ctx context.Context, filePath string) (io.ReadCloser, 
 	return file, nil
 }
 
+// Put writes an object to remote SFTP storage atomically using a temporary file and POSIX rename.
 func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, size int64, contentType string) error {
 	fullPath := s.resolve(filePath)
 	dir := path.Dir(fullPath)
@@ -134,8 +137,8 @@ func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, 
 	}
 
 	if _, err := io.Copy(f, data); err != nil {
-		f.Close()
-		s.sftpClient.Remove(tmpPath)
+		_ = f.Close()
+		_ = s.sftpClient.Remove(tmpPath)
 		return fmt.Errorf("sftp put copy: %w", err)
 	}
 	if err := f.Close(); err != nil {
@@ -146,7 +149,7 @@ func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, 
 	if err := s.sftpClient.PosixRename(tmpPath, fullPath); err != nil {
 		// Fallback to Rename if PosixRename extension not supported
 		if errFallback := s.sftpClient.Rename(tmpPath, fullPath); errFallback != nil {
-			s.sftpClient.Remove(tmpPath)
+			_ = s.sftpClient.Remove(tmpPath)
 			return fmt.Errorf("sftp rename: %w", errFallback)
 		}
 	}
@@ -154,10 +157,12 @@ func (s *SFTPBackend) Put(ctx context.Context, filePath string, data io.Reader, 
 	return nil
 }
 
+// PutBytes is a convenience helper storing a raw byte slice on SFTP.
 func (s *SFTPBackend) PutBytes(ctx context.Context, filePath string, data []byte, contentType string) error {
 	return s.Put(ctx, filePath, bytes.NewReader(data), int64(len(data)), contentType)
 }
 
+// Delete removes an object from SFTP storage.
 func (s *SFTPBackend) Delete(ctx context.Context, filePath string) error {
 	fullPath := s.resolve(filePath)
 	err := s.sftpClient.Remove(fullPath)
@@ -167,6 +172,7 @@ func (s *SFTPBackend) Delete(ctx context.Context, filePath string) error {
 	return nil
 }
 
+// Exists checks if an object exists on SFTP storage.
 func (s *SFTPBackend) Exists(ctx context.Context, filePath string) (bool, error) {
 	fullPath := s.resolve(filePath)
 	_, err := s.sftpClient.Stat(fullPath)
@@ -179,6 +185,7 @@ func (s *SFTPBackend) Exists(ctx context.Context, filePath string) (bool, error)
 	return false, err
 }
 
+// List returns relative object paths matching a prefix on SFTP storage.
 func (s *SFTPBackend) List(ctx context.Context, prefix string) ([]string, error) {
 	fullPrefix := s.resolve(prefix)
 	walker := s.sftpClient.Walk(fullPrefix)
@@ -218,7 +225,7 @@ func (s *SFTPBackend) PutIfNotExist(ctx context.Context, filePath string, data [
 		}
 		return fmt.Errorf("sftp open exclusive: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Write(data); err != nil {
 		return fmt.Errorf("sftp write: %w", err)
