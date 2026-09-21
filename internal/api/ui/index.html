@@ -165,7 +165,7 @@
       <!-- Package List (1 Card Per Line) -->
       <div v-else-if="filteredPackages && filteredPackages.length" class="flex flex-col gap-3">
         <div 
-          v-for="pkg in filteredPackages" 
+          v-for="pkg in paginatedPackages" 
           :key="pkg.name"
           @click="selectPackage(pkg)"
           class="p-4 sm:p-5 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group shadow-2xs">
@@ -202,6 +202,30 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
               </svg>
             </span>
+          </div>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div v-if="filteredPackages.length > pageSize" class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
+          <div class="text-xs text-slate-500 font-mono">
+            Showing <span class="font-bold text-slate-800">{{ (currentPage - 1) * pageSize + 1 }}</span> to <span class="font-bold text-slate-800">{{ Math.min(currentPage * pageSize, filteredPackages.length) }}</span> of <span class="font-bold text-slate-800">{{ filteredPackages.length.toLocaleString() }}</span> packages
+          </div>
+          <div class="flex items-center gap-2">
+            <button 
+              @click="currentPage--" 
+              :disabled="currentPage <= 1"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition shadow-2xs">
+              &larr; Previous
+            </button>
+            <span class="text-xs font-mono text-slate-600 px-2">
+              Page {{ currentPage }} of {{ totalPages }}
+            </span>
+            <button 
+              @click="currentPage++" 
+              :disabled="currentPage >= totalPages"
+              class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:pointer-events-none transition shadow-2xs">
+              Next &rarr;
+            </button>
           </div>
         </div>
       </div>
@@ -329,7 +353,7 @@
   </div>
 
   <script>
-    const { createApp, ref, computed, onMounted } = Vue;
+    const { createApp, ref, computed, watch, onMounted } = Vue;
 
     createApp({
       setup() {
@@ -343,6 +367,12 @@
         const selectedPackage = ref(null);
         const packageDetails = ref(null);
         const selectedVersion = ref('');
+        const currentPage = ref(1);
+        const pageSize = ref(50);
+
+        watch(searchQuery, () => {
+          currentPage.value = 1;
+        });
 
         const loadInfo = async () => {
           try {
@@ -453,6 +483,15 @@
           );
         });
 
+        const totalPages = computed(() => {
+          return Math.max(1, Math.ceil(filteredPackages.value.length / pageSize.value));
+        });
+
+        const paginatedPackages = computed(() => {
+          const start = (currentPage.value - 1) * pageSize.value;
+          return filteredPackages.value.slice(start, start + pageSize.value);
+        });
+
         const formatBytes = (bytes) => {
           if (!bytes || bytes === 0) return '0 B';
           const k = 1024;
@@ -491,6 +530,10 @@
           selectedVersion,
           currentVersionData,
           filteredPackages,
+          paginatedPackages,
+          currentPage,
+          pageSize,
+          totalPages,
           formatBytes,
           formatKB,
           formatTime,

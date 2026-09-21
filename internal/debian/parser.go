@@ -10,6 +10,9 @@ import (
 // ParseParagraphs reads a stream of RFC 822 / deb822 paragraphs separated by blank lines.
 func ParseParagraphs(r io.Reader) ([]*Paragraph, error) {
 	scanner := bufio.NewScanner(r)
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 16*1024*1024)
+
 	var paragraphs []*Paragraph
 	current := NewParagraph()
 	var currentKey string
@@ -27,6 +30,11 @@ func ParseParagraphs(r io.Reader) ([]*Paragraph, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
+
+		// Ignore comment lines
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
 
 		// Blank line indicates paragraph boundary
 		if trimmed == "" {

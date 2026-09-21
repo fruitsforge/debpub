@@ -28,9 +28,18 @@ func (p *Paragraph) Set(key, value string) {
 	p.Fields[key] = value
 }
 
-// Get returns the value of key or empty string if not present.
+// Get returns the value of key or empty string if not present. Lookups are case-insensitive per RFC 822.
 func (p *Paragraph) Get(key string) string {
-	return p.Fields[key]
+	if val, ok := p.Fields[key]; ok {
+		return val
+	}
+	lower := strings.ToLower(key)
+	for k, v := range p.Fields {
+		if strings.ToLower(k) == lower {
+			return v
+		}
+	}
+	return ""
 }
 
 // PackageControl holds the parsed binary control file specification (deb-control(5)).

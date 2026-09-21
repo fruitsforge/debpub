@@ -75,7 +75,8 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 					cleanItem = strings.TrimPrefix(cleanItem, "/")
 				}
 				parts := strings.Split(cleanItem, "/")
-				if len(parts) > 0 && parts[0] != "" && parts[0] != ".lock" {
+				// Only consider real subdirectories under dists/ (depth >= 2, no dot extensions or hidden files)
+				if len(parts) >= 2 && parts[0] != "" && !strings.HasPrefix(parts[0], ".") && !strings.Contains(parts[0], ".") {
 					discovered[parts[0]] = true
 				}
 			}
@@ -104,52 +105,62 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 			m.knownCodenames = append(m.knownCodenames, curCodename)
 		}
 
-		// 1. Try reading dists/<curCodename>/Release to discover components, architectures and metadata
-		releasePath := path.Join("dists", curCodename, "Release")
-		rc, err := m.storage.Get(ctx, releasePath)
-		if err == nil {
-			relBytes, errRead := io.ReadAll(rc)
-			_ = rc.Close()
-			if errRead == nil {
-				paras, errP := debian.ParseParagraphs(bytes.NewReader(relBytes))
-				if errP == nil && len(paras) > 0 {
-					p := paras[0]
-					manifest := &debian.ReleaseManifest{
-						Origin:      p.Get("Origin"),
-						Label:       p.Get("Label"),
-						Suite:       p.Get("Suite"),
-						Codename:    p.Get("Codename"),
-						Date:        p.Get("Date"),
-						Description: p.Get("Description"),
-					}
-					if manifest.Codename == "" {
-						manifest.Codename = curCodename
-					}
-					if archs := p.Get("Architectures"); archs != "" {
-						manifest.Architectures = strings.Fields(archs)
-					}
-					if comps := p.Get("Components"); comps != "" {
-						manifest.Components = strings.Fields(comps)
-					}
-					m.releaseMeta[curCodename] = manifest
-					slog.Info("Discovered Release manifest", "codename", curCodename, "archs", manifest.Architectures, "comps", manifest.Components, "date", manifest.Date)
+		// 1. Try reading dists/<curCodename>/InRelease or dists/<curCodename>/Release
+		var relBytes []byte
+		for _, relCandidate := range []string{
+			path.Join("dists", curCodename, "InRelease"),
+			path.Join("dists", curCodename, "Release"),
+		} {
+			rc, err := m.storage.Get(ctx, relCandidate)
+			if err == nil {
+				b, errRead := io.ReadAll(rc)
+				_ = rc.Close()
+				if errRead == nil && len(b) > 0 {
+					relBytes = b
+					break
+				}
+			}
+		}
 
-					// Update discovered components and architectures
-					for _, comp := range manifest.Components {
-						if !slices.Contains(m.knownComponents, comp) {
-							m.knownComponents = append(m.knownComponents, comp)
-						}
+		if len(relBytes) > 0 {
+			paras, errP := debian.ParseParagraphs(bytes.NewReader(relBytes))
+			if errP == nil && len(paras) > 0 {
+				p := paras[0]
+				manifest := &debian.ReleaseManifest{
+					Origin:      p.Get("Origin"),
+					Label:       p.Get("Label"),
+					Suite:       p.Get("Suite"),
+					Codename:    p.Get("Codename"),
+					Date:        p.Get("Date"),
+					Description: p.Get("Description"),
+				}
+				if manifest.Codename == "" {
+					manifest.Codename = curCodename
+				}
+				if archs := p.Get("Architectures"); archs != "" {
+					manifest.Architectures = strings.Fields(archs)
+				}
+				if comps := p.Get("Components"); comps != "" {
+					manifest.Components = strings.Fields(comps)
+				}
+				m.releaseMeta[curCodename] = manifest
+				slog.Info("Discovered Release manifest", "codename", curCodename, "archs", manifest.Architectures, "comps", manifest.Components, "date", manifest.Date)
+
+				// Update discovered components and architectures
+				for _, comp := range manifest.Components {
+					if !slices.Contains(m.knownComponents, comp) {
+						m.knownComponents = append(m.knownComponents, comp)
 					}
-					for _, arch := range manifest.Architectures {
-						if !slices.Contains(m.knownArchs, arch) {
-							m.knownArchs = append(m.knownArchs, arch)
-						}
+				}
+				for _, arch := range manifest.Architectures {
+					if !slices.Contains(m.knownArchs, arch) {
+						m.knownArchs = append(m.knownArchs, arch)
 					}
 				}
 			}
 		}
 
-		// Determine architectures to fetch
+		// Determine architectures and components to search for
 		archs := m.cfg.Architectures
 		if len(archs) == 0 {
 			if manifest, ok := m.releaseMeta[curCodename]; ok && len(manifest.Architectures) > 0 {
@@ -160,7 +171,6 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 			archs = []string{"all", "arm64", "amd64", "armhf", "i386"}
 		}
 
-		// Determine components to fetch
 		comps := []string{component}
 		if manifest, ok := m.releaseMeta[curCodename]; ok && len(manifest.Components) > 0 {
 			for _, comp := range manifest.Components {
@@ -170,29 +180,58 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 			}
 		}
 
+		// 2. Discover and ingest Packages indexes (both hierarchical and flat repository layouts)
+		seenFiles := make(map[string]bool)
+
+		// First, check storage listing under dists/<curCodename>
+		if listed, err := m.storage.List(ctx, path.Join("dists", curCodename)); err == nil {
+			for _, item := range listed {
+				base := path.Base(item)
+				if strings.HasPrefix(base, "Packages") && !seenFiles[item] {
+					seenFiles[item] = true
+					if rawIndex, err := m.fetchIndexFile(ctx, item); err == nil {
+						if parsed, err := debian.ParseIndex(rawIndex); err == nil {
+							m.ingestIndex(curCodename, item, parsed, component)
+						} else {
+							slog.Warn("Failed to parse index", "path", item, "err", err)
+						}
+					}
+				}
+			}
+		}
+
+		// Second, probe standard hierarchical and flat paths in case storage listing didn't discover them
+		variants := []string{"", ".gz", ".xz", ".bz2"}
+		var probePaths []string
+
+		// Probing flat paths: dists/<curCodename>/Packages(.ext)
+		for _, ext := range variants {
+			probePaths = append(probePaths, path.Join("dists", curCodename, "Packages"+ext))
+		}
+
+		// Probing hierarchical paths: dists/<curCodename>/<comp>/binary-<arch>/Packages(.ext)
 		for _, comp := range comps {
 			if comp != "" && !slices.Contains(m.knownComponents, comp) {
 				m.knownComponents = append(m.knownComponents, comp)
 			}
 			for _, arch := range archs {
 				binaryArch := "binary-" + arch
-				key := curCodename + "/" + comp + "/" + arch
-
-				rawIndex, err := m.fetchPackagesIndexData(ctx, curCodename, comp, binaryArch)
-				if err != nil {
-					continue
+				for _, ext := range variants {
+					probePaths = append(probePaths, path.Join("dists", curCodename, comp, binaryArch, "Packages"+ext))
 				}
+			}
+		}
 
-				parsed, err := debian.ParseIndex(rawIndex)
-				if err != nil {
-					slog.Warn("Failed to parse index", "codename", curCodename, "comp", comp, "arch", arch, "err", err)
-					continue
-				}
-
-				m.indexes[key] = parsed
-				slog.Info("Successfully indexed Packages", "codename", curCodename, "comp", comp, "arch", arch, "packages", len(parsed.Packages))
-				if !slices.Contains(m.knownArchs, arch) {
-					m.knownArchs = append(m.knownArchs, arch)
+		for _, p := range probePaths {
+			if seenFiles[p] {
+				continue
+			}
+			if rawIndex, err := m.fetchIndexFile(ctx, p); err == nil {
+				seenFiles[p] = true
+				if parsed, err := debian.ParseIndex(rawIndex); err == nil {
+					m.ingestIndex(curCodename, p, parsed, component)
+				} else {
+					slog.Warn("Failed to parse index", "path", p, "err", err)
 				}
 			}
 		}
@@ -202,37 +241,100 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 	return nil
 }
 
+// ingestIndex partitions and stores packages from an index into m.indexes by architecture and component.
+func (m *RepositoryManager) ingestIndex(curCodename, targetPath string, parsed *debian.Index, defaultComp string) {
+	if defaultComp == "" {
+		defaultComp = m.cfg.Component
+	}
+	if defaultComp == "" {
+		defaultComp = "main"
+	}
+
+	for _, stanza := range parsed.Packages {
+		arch := stanza.Architecture
+		if arch == "" {
+			for _, part := range strings.Split(targetPath, "/") {
+				if strings.HasPrefix(part, "binary-") {
+					arch = strings.TrimPrefix(part, "binary-")
+					break
+				}
+			}
+		}
+		if arch == "" {
+			arch = "all"
+		}
+
+		comp := ""
+		// Extract component from directory path if structured (dists/<codename>/<comp>/binary-<arch>/...)
+		relToCodename := strings.TrimPrefix(targetPath, path.Join("dists", curCodename)+"/")
+		parts := strings.Split(relToCodename, "/")
+		if len(parts) >= 2 && !strings.HasPrefix(parts[0], "binary-") && !strings.HasPrefix(parts[0], "Packages") {
+			comp = parts[0]
+		}
+
+		// Infer component from package stanza Filename or Section
+		if comp == "" {
+			if strings.HasPrefix(stanza.Filename, "pool/") {
+				poolParts := strings.Split(strings.TrimPrefix(stanza.Filename, "pool/"), "/")
+				if len(poolParts) > 1 && poolParts[0] != "" {
+					comp = poolParts[0]
+				}
+			} else if strings.Contains(stanza.Section, "/") {
+				comp = strings.Split(stanza.Section, "/")[0]
+			}
+		}
+
+		if comp == "" {
+			comp = defaultComp
+		}
+
+		if !slices.Contains(m.knownComponents, comp) {
+			m.knownComponents = append(m.knownComponents, comp)
+		}
+		if !slices.Contains(m.knownArchs, arch) {
+			m.knownArchs = append(m.knownArchs, arch)
+		}
+
+		key := curCodename + "/" + comp + "/" + arch
+		idx, exists := m.indexes[key]
+		if !exists {
+			idx = debian.NewIndex()
+			m.indexes[key] = idx
+		}
+		idx.AddOrUpdate(stanza, true)
+	}
+
+	slog.Info("Ingested Packages index", "codename", curCodename, "path", targetPath, "packages", len(parsed.Packages))
+}
+
+// fetchIndexFile retrieves and decompresses an index file from storage.
+func (m *RepositoryManager) fetchIndexFile(ctx context.Context, targetPath string) ([]byte, error) {
+	rc, err := m.storage.Get(ctx, targetPath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rc.Close() }()
+
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		return nil, err
+	}
+
+	ext := path.Ext(targetPath)
+	return decompressData(ext, data)
+}
+
 // fetchPackagesIndexData attempts to fetch Packages, Packages.xz, Packages.gz, or Packages.bz2.
 func (m *RepositoryManager) fetchPackagesIndexData(ctx context.Context, codename, component, binaryArch string) ([]byte, error) {
 	base := path.Join("dists", codename, component, binaryArch, "Packages")
-	variants := []string{
-		"",     // plain Packages
-		".gz",  // Packages.gz
-		".xz",  // Packages.xz
-		".bz2", // Packages.bz2
-	}
+	variants := []string{"", ".gz", ".xz", ".bz2"}
 
 	for _, ext := range variants {
 		targetPath := base + ext
-		rc, err := m.storage.Get(ctx, targetPath)
-		if err != nil {
-			slog.Debug("Target index variant not found or error", "path", targetPath, "err", err)
-			continue
-		}
-
-		compressed, err := io.ReadAll(rc)
-		_ = rc.Close()
-		if err != nil {
-			slog.Warn("Failed reading index variant stream", "path", targetPath, "err", err)
-			continue
-		}
-
-		decompressed, err := decompressData(ext, compressed)
+		decompressed, err := m.fetchIndexFile(ctx, targetPath)
 		if err == nil {
-			slog.Info("Fetched index variant from storage", "path", targetPath, "bytes", len(decompressed))
 			return decompressed, nil
 		}
-		slog.Warn("Failed decompressing index variant", "path", targetPath, "ext", ext, "err", err)
 	}
 
 	return nil, storage.ErrNotFound

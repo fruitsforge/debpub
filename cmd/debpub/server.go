@@ -54,12 +54,10 @@ Examples:
 
 		mgr := api.NewRepositoryManager(cfg, backend)
 
-		// Pre-fetch index on launch if codename is specified
-		if cfg.Codename != "" {
-			slog.Info("Pre-fetching repository index", "codename", cfg.Codename, "component", cfg.Component)
-			if err := mgr.SyncIndexes(ctx, cfg.Codename, cfg.Component); err != nil {
-				slog.Warn("Could not pre-fetch index on startup (will be available via web UI fetch)", "err", err)
-			}
+		// Pre-fetch index on launch (auto-discovering codename if omitted)
+		slog.Info("Pre-fetching repository index", "codename", cfg.Codename, "component", cfg.Component)
+		if err := mgr.SyncIndexes(ctx, cfg.Codename, cfg.Component); err != nil {
+			slog.Warn("Could not pre-fetch index on startup (will be available via web UI fetch)", "err", err)
 		}
 
 		apiServer := api.NewServer(mgr)

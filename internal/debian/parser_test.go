@@ -115,3 +115,46 @@ Description: Numeric parsing test
 		})
 	}
 }
+
+func TestParagraph_GetCaseInsensitive(t *testing.T) {
+	p := NewParagraph()
+	p.Set("Package", "test-pkg")
+	p.Set("MD5sum", "d41d8cd98f00b204e9800998ecf8427e")
+	p.Set("SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+
+	if got := p.Get("package"); got != "test-pkg" {
+		t.Errorf("expected test-pkg, got %s", got)
+	}
+	if got := p.Get("PACKAGE"); got != "test-pkg" {
+		t.Errorf("expected test-pkg, got %s", got)
+	}
+	if got := p.Get("md5sum"); got != "d41d8cd98f00b204e9800998ecf8427e" {
+		t.Errorf("expected md5sum match, got %s", got)
+	}
+	if got := p.Get("MD5Sum"); got != "d41d8cd98f00b204e9800998ecf8427e" {
+		t.Errorf("expected MD5Sum match, got %s", got)
+	}
+	if got := p.Get("sha256"); got != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		t.Errorf("expected sha256 match, got %s", got)
+	}
+}
+
+func TestParseParagraphs_LargeFieldAndComments(t *testing.T) {
+	// Create a line exceeding 64KB (e.g. 100KB)
+	largeVal := strings.Repeat("a", 100*1024)
+	input := "# Leading comment\nPackage: large-pkg\nVersion: 1.0\n# Inline comment\nDescription: " + largeVal + "\n"
+
+	paras, err := ParseParagraphs(strings.NewReader(input))
+	if err != nil {
+		t.Fatalf("ParseParagraphs failed on large line: %v", err)
+	}
+	if len(paras) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(paras))
+	}
+	if paras[0].Get("Package") != "large-pkg" {
+		t.Errorf("expected large-pkg, got %s", paras[0].Get("Package"))
+	}
+	if len(paras[0].Get("Description")) != len(largeVal) {
+		t.Errorf("expected large description length %d, got %d", len(largeVal), len(paras[0].Get("Description")))
+	}
+}

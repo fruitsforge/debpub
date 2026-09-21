@@ -2,11 +2,13 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"debpub/internal/config"
@@ -50,6 +52,18 @@ func (m *mockStorage) PutBytes(_ context.Context, path string, data []byte, _ st
 func (m *mockStorage) Exists(_ context.Context, path string) (bool, error) {
 	_, ok := m.files[path]
 	return ok, nil
+}
+
+func (m *mockStorage) List(_ context.Context, prefix string) ([]string, error) {
+	var matches []string
+	cleanPrefix := strings.TrimPrefix(prefix, "/")
+	for p := range m.files {
+		cleanP := strings.TrimPrefix(p, "/")
+		if cleanPrefix == "" || strings.HasPrefix(cleanP, cleanPrefix) {
+			matches = append(matches, cleanP)
+		}
+	}
+	return matches, nil
 }
 
 func TestAPIServer(t *testing.T) {
@@ -271,4 +285,56 @@ func TestAPIServer(t *testing.T) {
 			t.Fatalf("expected 404 NotFound, got %d", rec.Code)
 		}
 	})
+}
+
+func TestFlatRepositoryLayoutAndDiscovery(t *testing.T) {
+	mockStore := newMockStorage()
+
+	// Seed flat Packages.gz index under dists/stable/Packages.gz
+	idx := debian.NewIndex()
+	idx.AddOrUpdate(&debian.PackageStanza{
+		PackageControl: debian.PackageControl{
+			Package:      "sample-flat",
+			Version:      "1.0.0",
+			Architecture: "all",
+			Maintainer:   "Flat Team <flat@example.com>",
+			Description:  "Sample flat package",
+		},
+		Filename: "pool/main/s/sample-flat/sample-flat_1.0.0_all.deb",
+		Size:     12345,
+		SHA256:   "abcdef",
+	}, true)
+
+	// Compress to .gz
+	var gzBuf bytes.Buffer
+	gw := gzip.NewWriter(&gzBuf)
+	_, _ = gw.Write(idx.Serialize())
+	_ = gw.Close()
+
+	mockStore.files["dists/stable/Packages.gz"] = gzBuf.Bytes()
+	// Loose file inside dists/ that should NOT be detected as a codename
+	mockStore.files["dists/debian-dists-stable-Release.txt"] = []byte("Origin: Debian\n")
+
+	cfg := config.DefaultConfig()
+	mgr := NewRepositoryManager(cfg, mockStore)
+
+	ctx := context.Background()
+	// Auto-discovery without specifying codename
+	if err := mgr.SyncIndexes(ctx, "", ""); err != nil {
+		t.Fatalf("SyncIndexes failed: %v", err)
+	}
+
+	info := mgr.GetRepoInfo("stable", "main")
+	if len(info.AllCodenames) != 1 || info.AllCodenames[0] != "stable" {
+		t.Fatalf("expected only 'stable' codename discovered, got %v", info.AllCodenames)
+	}
+
+	if info.TotalPackages != 1 {
+		t.Fatalf("expected 1 package from flat Packages.gz, got %d", info.TotalPackages)
+	}
+
+	cards := mgr.ListPackages("stable", "main", "all", "")
+	if len(cards) != 1 || cards[0].Name != "sample-flat" {
+		t.Fatalf("expected sample-flat card, got %+v", cards)
+	}
 }
