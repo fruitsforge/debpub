@@ -17,6 +17,8 @@ const (
 	DefaultLockTimeout      = 2 * time.Minute
 	DefaultLockTTL          = 3 * time.Minute
 	DefaultSFTPPort         = 22
+	DefaultServerPort       = 8080
+	DefaultServerBind       = "127.0.0.1"
 )
 
 // ParseDurationFlexible parses a duration from string supporting both:

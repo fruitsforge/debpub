@@ -60,8 +60,12 @@ func (s *S3Backend) Get(ctx context.Context, path string) (io.ReadCloser, error)
 		if _, ok := errors.AsType[*s3types.NoSuchKey](err); ok {
 			return nil, ErrNotFound
 		}
+		var respErr *awshttp.ResponseError
+		if errors.As(err, &respErr) && respErr.HTTPStatusCode() == 404 {
+			return nil, ErrNotFound
+		}
 		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
+		if errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound") {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("s3 get: %w", err)

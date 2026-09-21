@@ -31,6 +31,12 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.SFTPPort != DefaultSFTPPort {
 		t.Errorf("SFTPPort = %d, want %d", cfg.SFTPPort, DefaultSFTPPort)
 	}
+	if cfg.ServerPort != DefaultServerPort {
+		t.Errorf("ServerPort = %d, want %d", cfg.ServerPort, DefaultServerPort)
+	}
+	if cfg.ServerBind != DefaultServerBind {
+		t.Errorf("ServerBind = %q, want %q", cfg.ServerBind, DefaultServerBind)
+	}
 	if !cfg.PreserveVersions {
 		t.Errorf("PreserveVersions = false, want true")
 	}
@@ -126,6 +132,12 @@ func TestLoadConfigFile(t *testing.T) {
 			"profile": "staging",
 			"region": "eu-central-1"
 		},
+		"server": {
+			"port": 9090,
+			"bind": "0.0.0.0",
+			"tls_cert": "/path/to/cert.pem",
+			"tls_key": "/path/to/key.pem"
+		},
 		"metadata": {
 			"pipeline_id": "999"
 		}
@@ -138,6 +150,19 @@ func TestLoadConfigFile(t *testing.T) {
 	cfg := DefaultConfig()
 	if err := LoadConfigFile(configPath, cfg); err != nil {
 		t.Fatalf("LoadConfigFile failed: %v", err)
+	}
+
+	if cfg.ServerPort != 9090 {
+		t.Errorf("ServerPort = %d, want 9090", cfg.ServerPort)
+	}
+	if cfg.ServerBind != "0.0.0.0" {
+		t.Errorf("ServerBind = %q, want 0.0.0.0", cfg.ServerBind)
+	}
+	if cfg.ServerTLSCert != "/path/to/cert.pem" {
+		t.Errorf("ServerTLSCert = %q, want /path/to/cert.pem", cfg.ServerTLSCert)
+	}
+	if cfg.ServerTLSKey != "/path/to/key.pem" {
+		t.Errorf("ServerTLSKey = %q, want /path/to/key.pem", cfg.ServerTLSKey)
 	}
 
 	if cfg.Storage != "s3" {
