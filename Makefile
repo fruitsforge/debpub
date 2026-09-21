@@ -47,4 +47,4 @@ clean:
 	rm -rf $(BIN_DIR)
 
 release:
-	@./scripts/release.sh $(if $(filter true,$(DRY_RUN)),--dry-run,) $(if $(filter true,$(PUSH)),--push,) $(VERSION)
+	@./scripts/release.sh $(if $(filter true,$(DRY_RUN)),--dry-run,) $(if $(filter true,$(PUSH)),--push,) $(if $(filter false,$(PUSH)),--no-push,) $(if $(filter true,$(NO_PUSH)),--no-push,) $(VERSION)
