@@ -125,8 +125,9 @@ if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Check if tag already exists on origin
-if git ls-remote --tags origin "${TAG_NAME}" | grep -q "${TAG_NAME}"; then
+# Check if tag already exists on origin (if remote is reachable)
+REMOTE_TAGS=$(git ls-remote --tags origin "${TAG_NAME}" 2>/dev/null || true)
+if echo "${REMOTE_TAGS}" | grep -q "${TAG_NAME}"; then
     error "Git tag '${TAG_NAME}' already exists on remote 'origin'."
     exit 1
 fi
@@ -152,7 +153,6 @@ safe_replace() {
     tmp_file="$(mktemp)"
     sed "s|${pattern}|${replacement}|g" "${file}" > "${tmp_file}"
     if [[ "${DRY_RUN}" == "true" ]]; then
-        echo "  [dry-run] Diff for ${file}:"
         diff -u "${file}" "${tmp_file}" || true
         rm -f "${tmp_file}"
     else
@@ -163,8 +163,17 @@ safe_replace() {
 # Target 1: internal/version/version.go
 VERSION_GO="internal/version/version.go"
 if [[ -f "${VERSION_GO}" ]]; then
-    safe_replace 'Version = "[^"]*"' "Version = \"${RAW_VERSION}\"" "${VERSION_GO}"
-    safe_replace 'Version=v[^"]*"' "Version=v${RAW_VERSION}\"" "${VERSION_GO}"
+    tmp_file="$(mktemp)"
+    sed -e "s|Version = \"[^\"]*\"|Version = \"${RAW_VERSION}\"|g" \
+        -e "s|Version=v[^\"]*\"|Version=v${RAW_VERSION}\"|g" \
+        "${VERSION_GO}" > "${tmp_file}"
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        echo "  [dry-run] Diff for ${VERSION_GO}:"
+        diff -u "${VERSION_GO}" "${tmp_file}" || true
+        rm -f "${tmp_file}"
+    else
+        mv "${tmp_file}" "${VERSION_GO}"
+    fi
 else
     error "File not found: ${VERSION_GO}"
     exit 1
