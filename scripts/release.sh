@@ -120,9 +120,15 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 # Check if tag already exists locally
+CURRENT_HEAD="$(git rev-parse HEAD 2>/dev/null || echo "")"
 if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
-    error "Git tag '${TAG_NAME}' already exists locally."
-    exit 1
+    TAG_COMMIT="$(git rev-parse "${TAG_NAME}^{commit}" 2>/dev/null || git rev-parse "${TAG_NAME}" 2>/dev/null)"
+    if [[ "${TAG_COMMIT}" == "${CURRENT_HEAD}" ]]; then
+        info "Git tag '${TAG_NAME}' already exists locally pointing to current HEAD (${CURRENT_HEAD:0:7})."
+    else
+        error "Git tag '${TAG_NAME}' already exists locally pointing to another commit (${TAG_COMMIT:0:7} != HEAD ${CURRENT_HEAD:0:7}). Delete or update it before releasing."
+        exit 1
+    fi
 fi
 
 # Check if tag already exists on origin (if remote is reachable)
@@ -210,16 +216,25 @@ if [[ "${DRY_RUN}" == "true" ]]; then
 fi
 
 # 4. Commit and Tag
-info "Creating release commit..."
 git add "${VERSION_GO}" "${MAKEFILE}" "${DOCKERFILE}" "${README}"
-git commit -m "chore: bump version to ${TAG_NAME}"
+if git diff --staged --quiet; then
+    info "Version files already reflect version ${RAW_VERSION}. Using current commit $(git rev-parse --short HEAD)."
+else
+    info "Creating release commit..."
+    git commit -m "chore: bump version to ${TAG_NAME}"
+fi
 
-info "Creating annotated git tag: ${TAG_NAME}..."
-git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+# Create annotated tag if it does not already exist
+if git rev-parse "${TAG_NAME}" >/dev/null 2>&1; then
+    info "Annotated git tag ${TAG_NAME} already exists on HEAD."
+else
+    info "Creating annotated git tag: ${TAG_NAME}..."
+    git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+fi
 
 # 5. Display commit summary
 echo ""
-echo -e "${GREEN}${BOLD}Release commit and tag created successfully:${NC}"
+echo -e "${GREEN}${BOLD}Release commit and tag ready:${NC}"
 git show --stat HEAD
 echo ""
 
