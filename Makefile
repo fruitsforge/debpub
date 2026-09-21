@@ -1,4 +1,4 @@
-.PHONY: all build test clean docker-build docker-test
+.PHONY: all build test clean docker-build docker-test release
 
 BINARY_NAME=debpub
 BIN_DIR=bin
@@ -45,3 +45,6 @@ docker-test:
 
 clean:
 	rm -rf $(BIN_DIR)
+
+release:
+	@./scripts/release.sh $(if $(filter true,$(DRY_RUN)),--dry-run,) $(if $(filter true,$(PUSH)),--push,) $(VERSION)

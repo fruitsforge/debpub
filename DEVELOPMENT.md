@@ -131,3 +131,28 @@ Before submitting PRs, ensure code conforms to the project conventions:
    - `debpub` must remain 100% stateless. The Debian repository's `Packages` manifest is the sole canonical database. Do not introduce local LevelDB/SQLite databases.
 4. **Anti-Corruption Protocol**:
    - Always preserve the 4-phase staged upload sequence in `internal/repo/publisher.go` (Payloads -> Indices -> Manifests -> Unlock).
+
+---
+
+## 7. Release Management
+
+Releases are automated via GitHub Actions and GoReleaser, triggered by git tags (`v*`).
+
+### Standard Release Workflow
+To release a new version:
+
+```bash
+# 1. Preview changes safely (dry-run)
+make release VERSION=0.0.2 DRY_RUN=true
+
+# 2. Execute release (runs tests, updates version files, commits, tags, and prompts before push)
+make release VERSION=0.0.2
+```
+
+The script will:
+1. Verify working directory is clean and on branch `main`.
+2. Run unit tests (`make test`).
+3. Update version metadata in `internal/version/version.go`, `Makefile`, `Dockerfile`, and `README.md`.
+4. Create release commit and annotated git tag `vX.Y.Z`.
+5. Display the commit diff and prompt for interactive push confirmation (`[y/N]`).
+6. Upon confirmation, push `main` and `vX.Y.Z` to GitHub, triggering GoReleaser to publish multi-architecture binaries and release notes.
