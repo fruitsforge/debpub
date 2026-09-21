@@ -25,7 +25,7 @@ func newMockStorage() *mockStorage {
 	}
 }
 
-func (m *mockStorage) Get(ctx context.Context, path string) (io.ReadCloser, error) {
+func (m *mockStorage) Get(_ context.Context, path string) (io.ReadCloser, error) {
 	data, ok := m.files[path]
 	if !ok {
 		return nil, storage.ErrNotFound
@@ -33,7 +33,7 @@ func (m *mockStorage) Get(ctx context.Context, path string) (io.ReadCloser, erro
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-func (m *mockStorage) Put(ctx context.Context, path string, data io.Reader, size int64, contentType string) error {
+func (m *mockStorage) Put(_ context.Context, path string, data io.Reader, _ int64, _ string) error {
 	b, err := io.ReadAll(data)
 	if err != nil {
 		return err
@@ -42,12 +42,12 @@ func (m *mockStorage) Put(ctx context.Context, path string, data io.Reader, size
 	return nil
 }
 
-func (m *mockStorage) PutBytes(ctx context.Context, path string, data []byte, contentType string) error {
+func (m *mockStorage) PutBytes(_ context.Context, path string, data []byte, _ string) error {
 	m.files[path] = data
 	return nil
 }
 
-func (m *mockStorage) Exists(ctx context.Context, path string) (bool, error) {
+func (m *mockStorage) Exists(_ context.Context, path string) (bool, error) {
 	_, ok := m.files[path]
 	return ok, nil
 }

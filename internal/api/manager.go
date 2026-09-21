@@ -108,8 +108,8 @@ func (m *RepositoryManager) SyncIndexes(ctx context.Context, codename, component
 		releasePath := path.Join("dists", curCodename, "Release")
 		rc, err := m.storage.Get(ctx, releasePath)
 		if err == nil {
-			defer rc.Close()
 			relBytes, errRead := io.ReadAll(rc)
+			_ = rc.Close()
 			if errRead == nil {
 				paras, errP := debian.ParseParagraphs(bytes.NewReader(relBytes))
 				if errP == nil && len(paras) > 0 {
@@ -219,9 +219,9 @@ func (m *RepositoryManager) fetchPackagesIndexData(ctx context.Context, codename
 			slog.Debug("Target index variant not found or error", "path", targetPath, "err", err)
 			continue
 		}
-		defer rc.Close()
 
 		compressed, err := io.ReadAll(rc)
+		_ = rc.Close()
 		if err != nil {
 			slog.Warn("Failed reading index variant stream", "path", targetPath, "err", err)
 			continue
@@ -247,15 +247,17 @@ func decompressData(ext string, data []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		defer gr.Close()
-		return io.ReadAll(gr)
+		out, err := io.ReadAll(gr)
+		_ = gr.Close()
+		return out, err
 	case ".bz2":
 		br, err := bzip2.NewReader(bytes.NewReader(data), nil)
 		if err != nil {
 			return nil, err
 		}
-		defer br.Close()
-		return io.ReadAll(br)
+		out, err := io.ReadAll(br)
+		_ = br.Close()
+		return out, err
 	case ".xz":
 		xr, err := xz.NewReader(bytes.NewReader(data))
 		if err != nil {
