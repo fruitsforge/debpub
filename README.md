@@ -38,7 +38,7 @@ Download the precompiled static binary for your architecture from [GitHub Releas
 
 ```bash
 # Example for Linux amd64
-curl -sSL -o /usr/local/bin/debpub https://github.com/fruitsforge/debpub/releases/latest/download/debpub_0.0.2_linux_amd64.tar.gz
+curl -sSL -o /usr/local/bin/debpub https://github.com/fruitsforge/debpub/releases/latest/download/debpub_0.0.3_linux_amd64.tar.gz
 chmod +x /usr/local/bin/debpub
 ```
 
