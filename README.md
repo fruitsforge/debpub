@@ -22,10 +22,11 @@ Debian repository management in modern CI/CD pipelines (such as **Azure DevOps P
 
 `debpub` combines the **stateless index-driven architecture** of `deb-s3` with the **speed, reliability, and single static binary distribution** of Go:
 
-- 🚀 **Stateless Index Architecture**: The Debian repository's `Packages` manifest in S3 or on disk **is** the database. No LevelDB, SQLite, or database tarballs to backup or restore.
+- 🚀 **Stateless Index Architecture**: The Debian repository's `Packages` manifest in S3, SFTP, or on disk **is** the database. No LevelDB, SQLite, or database tarballs to backup or restore.
+- 🖥️ **Embedded Repository Browser & REST API (`debpub serve`)**: Built-in zero-dependency web server and interactive UI to browse packages, inspect metadata, filter versions, and synchronize indexes with automatic codename/component discovery.
 - 🔒 **Distributed Locking (`--lock`)**: Safe concurrent writes from multiple independent CI/CD runners using atomic `.lock` metadata with configurable TTL, automatic stale lock recovery, and S3 conditional writes (`If-None-Match: "*"`).
-- 📦 **Modern Compression**: Out-of-the-box generation of `Packages`, `Packages.gz`, **`Packages.bz2`**, and `Packages.xz`.
-- ⚡ **Zero Runtime Dependencies**: A single self-contained static binary (< 20 MB). Runs in `scratch`, `alpine`, or minimal CI containers without Ruby, Python, or the `awscli` binary.
+- 📦 **Modern Compression**: Out-of-the-box generation and decompression of `Packages`, `Packages.gz`, **`Packages.bz2`**, and `Packages.xz`.
+- ⚡ **Zero Runtime Dependencies**: A single self-contained static binary (< 20 MB). Runs in `scratch`, `alpine`, or minimal CI containers without Ruby, Python, or external packages.
 - 🌐 **Multi-Storage Protocols**: First-class support for **AWS S3** (and S3-compatible endpoints like MinIO, Ceph, Cloudflare R2), **SFTP** (SSH file transfer for Linux servers and mirrors), and **Local Filesystem** (`file://`).
 
 ---
@@ -170,6 +171,54 @@ debpub publish \
 > **Why Batch Publishing is Superior in CI/CD**:
 > Publishing 10 packages in a single batch operation acquires the repository lock **once**, generates and compresses index files (`Packages.gz`, `Packages.xz`, etc.) **once**, and writes an atomic `Release` manifest. This eliminates locking contention between concurrent runner jobs and saves up to 90% of S3 API PUT calls compared to running single-package upload commands in a loop.
 
+### 6. Browsing Repository Packages via Web UI & REST API (`debpub serve`)
+
+`debpub` includes a built-in zero-dependency HTTP/HTTPS server and single-page web UI to browse repositories, inspect package details (control fields, architectures, dependencies, SHA-256 hashes), and dynamically sync index files.
+
+#### Local Directory:
+```bash
+debpub serve --storage file --dir /var/www/repos/apt --server-port 8080
+```
+
+#### AWS S3 Repository (with automatic codename & component auto-discovery):
+```bash
+debpub serve \
+  --storage s3 \
+  --bucket repo-deb.dev.example.com \
+  --s3-profile dev \
+  --server-port 8090
+```
+
+#### Remote SFTP Repository:
+```bash
+debpub serve \
+  --storage sftp \
+  --sftp-host repo.example.com \
+  --sftp-user debian \
+  --sftp-key ~/.ssh/id_ed25519 \
+  --prefix /var/www/debian \
+  --server-port 8080
+```
+
+#### HTTPS with Custom TLS Certificates:
+```bash
+debpub serve \
+  --storage s3 \
+  --bucket my-debian-repo \
+  --server-port 8443 \
+  --server-tls-cert /path/to/cert.pem \
+  --server-tls-key /path/to/key.pem
+```
+
+Open **`http://localhost:8080/`** (or your configured port) in your browser.
+
+#### REST API Endpoints:
+The daemon exposes clean REST endpoints:
+- `GET /api/info?codename=<name>&component=<comp>`: Returns repository metadata, active targets, and total package/version counts.
+- `GET /api/packages?codename=<name>&component=<comp>&arch=<arch>&q=<search>`: Lists package summary cards with all available versions.
+- `GET /api/packages/{name}?codename=<name>&component=<comp>&version=<ver>`: Returns complete Debian control paragraph for a package.
+- `POST /api/fetch?codename=<name>&component=<comp>`: Triggers an in-memory re-sync and auto-discovery of remote indexes.
+
 ---
 
 ## Configuration File (`debpub.json`)
@@ -197,6 +246,12 @@ To avoid repeating flags across CI/CD pipeline steps, define a `debpub.json` fil
     "enabled": true,
     "timeout": "2m",
     "ttl": "3m"
+  },
+  "server": {
+    "port": 8080,
+    "bind": "0.0.0.0",
+    "tls_cert": "",
+    "tls_key": ""
   },
   "s3": {
     "endpoint": "",
@@ -264,6 +319,33 @@ debpub publish --config debpub.json ./mypackage_1.0.0_amd64.deb
 | `--label` | | Custom repository `Label` header | |
 | `--suite` | | Custom repository `Suite` header | Defaults to `--codename` |
 | `--description` | | Repository `Description` header | |
+
+### `debpub serve [flags]`
+
+Starts an embedded HTTP/HTTPS server with REST API endpoints and an interactive single-page web UI to browse packages, inspect metadata, filter versions, and sync indexes.
+
+| Flag | Shorthand | Description | Default |
+| :--- | :--- | :--- | :--- |
+| `--server-port` | | HTTP/HTTPS server listening port | `8080` |
+| `--server-bind` | | HTTP/HTTPS server bind IP address or hostname | `0.0.0.0` |
+| `--server-tls-cert` | | Path to TLS certificate file for HTTPS | `""` |
+| `--server-tls-key` | | Path to TLS private key file for HTTPS | `""` |
+| `--config` | | Path to `debpub.json` configuration file | |
+| `--storage` | | Storage backend (`s3`, `sftp`, `file`) | `file` |
+| `--codename` | `-c` | Distribution codename (auto-discovered if omitted) | `""` |
+| `--component` | `-m` | Repository component (auto-discovered from `Release` or `dists/`) | `main` |
+| `--dir` | | Local repository root directory (for `file` storage) | `.` |
+| `--bucket` | `-b` | S3 bucket name (for `s3` storage) | |
+| `--prefix` | | S3 or remote directory path prefix | `""` |
+| `--s3-profile` | | AWS profile name for S3 credentials | |
+| `--s3-region` | | AWS region for S3 bucket | |
+| `--s3-endpoint` | | Custom S3 endpoint URL (MinIO, Ceph, R2) | |
+| `--s3-force-path-style` | | Use path-style S3 URLs | `false` |
+| `--sftp-host` | | SFTP server hostname / IP | |
+| `--sftp-port` | | SFTP port | `22` |
+| `--sftp-user` | | SFTP username | Current OS `$USER` |
+| `--sftp-key` | | SFTP SSH private key file path | |
+| `--sftp-password` | | SFTP password | |
 
 ---
 

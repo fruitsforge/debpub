@@ -40,6 +40,10 @@ type Config struct {
 	SFTPPassword     string            `json:"sftp_password"`
 	SFTPKeyPath      string            `json:"sftp_key_path"`
 	LocalDir         string            `json:"local_dir"`
+	ServerPort       int               `json:"server_port"`
+	ServerBind       string            `json:"server_bind"`
+	ServerTLSCert    string            `json:"server_tls_cert"`
+	ServerTLSKey     string            `json:"server_tls_key"`
 	ExtraMetadata    map[string]string `json:"extra_metadata"`
 }
 
@@ -57,11 +61,20 @@ type ConfigFileSchema struct {
 	Suite            string            `json:"suite"`
 	Description      string            `json:"description"`
 	LocalDir         string            `json:"local_dir"`
+	Server           *ServerConfig     `json:"server"`
 	GPG              *GPGConfig        `json:"gpg"`
 	Lock             *LockConfig       `json:"lock"`
 	S3               *S3Config         `json:"s3"`
 	SFTP             *SFTPConfig       `json:"sftp"`
 	Metadata         map[string]string `json:"metadata"`
+}
+
+// ServerConfig holds HTTP/HTTPS server parameters in configuration files.
+type ServerConfig struct {
+	Port    int    `json:"port"`
+	Bind    string `json:"bind"`
+	TLSCert string `json:"tls_cert"`
+	TLSKey  string `json:"tls_key"`
 }
 
 // GPGConfig holds GPG signing settings in configuration files.
@@ -108,6 +121,8 @@ func DefaultConfig() *Config {
 		LockTimeout:      DefaultLockTimeout,
 		LockTTL:          DefaultLockTTL,
 		SFTPPort:         DefaultSFTPPort,
+		ServerPort:       DefaultServerPort,
+		ServerBind:       DefaultServerBind,
 		PreserveVersions: DefaultPreserveVersions,
 		ExtraMetadata:    make(map[string]string),
 	}
@@ -160,6 +175,21 @@ func LoadConfigFile(path string, target *Config) error {
 	}
 	if schema.LocalDir != "" {
 		target.LocalDir = schema.LocalDir
+	}
+
+	if schema.Server != nil {
+		if schema.Server.Port != 0 {
+			target.ServerPort = schema.Server.Port
+		}
+		if schema.Server.Bind != "" {
+			target.ServerBind = schema.Server.Bind
+		}
+		if schema.Server.TLSCert != "" {
+			target.ServerTLSCert = schema.Server.TLSCert
+		}
+		if schema.Server.TLSKey != "" {
+			target.ServerTLSKey = schema.Server.TLSKey
+		}
 	}
 
 	if schema.GPG != nil {

@@ -174,6 +174,10 @@ func loadConfigWithPrecedence(cmd *cobra.Command) error {
 	applyBoolIfNotChanged(cmd, "sign", &cfg.Sign, fileCfg.Sign)
 	applyStringIfNotChanged(cmd, "gpg-key", &cfg.GPGKey, fileCfg.GPGKey)
 	applyStringIfNotChanged(cmd, "gpg-passphrase", &cfg.GPGPassphrase, fileCfg.GPGPassphrase)
+	applyIntIfNotChanged(cmd, "server-port", &cfg.ServerPort, fileCfg.ServerPort)
+	applyStringIfNotChanged(cmd, "server-bind", &cfg.ServerBind, fileCfg.ServerBind)
+	applyStringIfNotChanged(cmd, "server-tls-cert", &cfg.ServerTLSCert, fileCfg.ServerTLSCert)
+	applyStringIfNotChanged(cmd, "server-tls-key", &cfg.ServerTLSKey, fileCfg.ServerTLSKey)
 
 	maps.Copy(cfg.ExtraMetadata, fileCfg.ExtraMetadata)
 
