@@ -13,7 +13,7 @@ on:
 jobs:
   unit-test:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -29,7 +29,7 @@ jobs:
 
   integration-test:
     name: Docker Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -39,7 +39,7 @@ jobs:
 
   build-check:
     name: Build Verification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
