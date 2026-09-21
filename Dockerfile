@@ -17,7 +17,7 @@ RUN go mod download
 
 COPY . .
 
-ARG VERSION=0.0.1
+ARG VERSION=0.0.2
 ARG GIT_COMMIT=none
 ARG BUILD_DATE=unknown
 
